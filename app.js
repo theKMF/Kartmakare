@@ -323,7 +323,9 @@ ctxMenu.addEventListener('click', (e) => {
     if (action === 'clear-areas') clearAllAreas();
     if (action === 'export-map') {
         const fmt = document.getElementById('export-format-select').value;
-        if (fmt === 'png') exportMapPNG(); else exportMapSVG();
+        if (fmt === 'png') exportMapPNG();
+        else if (fmt === 'json') saveMapData();
+        else exportMapSVG();
     }
     if (action === 'save-data') saveMapData();
     if (action === 'import-data') showView('import');
@@ -1251,6 +1253,7 @@ function startMidpointDrag(areaId, handle, handleEl, e) {
 document.getElementById('btn-map-export').addEventListener('click', () => {
     const fmt = document.getElementById('export-format-select').value;
     if (fmt === 'png') exportMapPNG();
+    else if (fmt === 'json') saveMapData();
     else exportMapSVG();
 });
 

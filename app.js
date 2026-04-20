@@ -729,16 +729,15 @@ importFileInput.addEventListener('change', (e) => {
     if (file) handleDroppedFile(file);
 });
 
-// Always block the browser's default "open dropped file" behavior across the whole window.
-// While on the import view, route any drop (inside or outside the drop zone) to the handler.
+// Accept file drops anywhere on the window. handleDroppedFile runs the payload
+// through normalizeImportData, so non-Kartmakare JSON is rejected before any state changes.
 window.addEventListener('dragover', (e) => {
     e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = importView.classList.contains('active') ? 'copy' : 'none';
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
 }, false);
 window.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
-    if (!importView.classList.contains('active')) return;
     const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (file) handleDroppedFile(file);
 }, false);

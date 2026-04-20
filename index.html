@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kartmakare</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========== CONSENT SCREEN ========== -->
+<div id="consent-overlay" class="consent-overlay">
+    <div class="consent-box" id="consent-ask">
+        <h2>Welcome to Kartmakare</h2>
+        <p>Kartmakare needs to store data on your computer to work. The data will only be accessed by the tool and nothing you do in the tool will be shared with Twofour.</p>
+        <p>We will also count how many times this tool is used and when it is used, but nothing else. This is so that we can see if it's popular, and if we should maybe create other tools in the future.</p>
+        <p>Is this okay?</p>
+        <div class="consent-buttons">
+            <button class="btn btn-accent" id="consent-yes">Yes</button>
+            <button class="btn-outline" id="consent-no">No</button>
+        </div>
+    </div>
+    <div class="consent-box" id="consent-declined" style="display:none;">
+        <p>I changed my mind, Kartmakare may store data on my computer, and it's okay that you see if it's popular by logging when this URL is opened.</p>
+        <div class="consent-buttons">
+            <button class="btn btn-accent" id="consent-letsgo">Let's go</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== LIST VIEW ========== -->
+<div id="list-view" class="list-view">
+    <div class="map-header">
+        <div class="map-header-left">
+            <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
+            <h2 class="map-title km-home" id="title-list" role="link" tabindex="0">Kartmakare</h2>
+        </div>
+    </div>
+    <div class="map-cta">
+        <button class="btn-map-hero" id="btn-map" disabled>
+            <svg viewBox="0 0 24 24"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z"/><path d="M9 4v13"/><path d="M15 7v13"/></svg>
+            Let's Map
+        </button>
+        <button class="btn-map-hero btn-import-hero" id="btn-import-map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Import Map Data
+        </button>
+        <button class="btn-map-hero btn-reset-hero" id="btn-reset-map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete all
+        </button>
+    </div>
+    <div class="anchor-bar">
+        <label class="anchor-label" for="anchor-input">Anchor</label>
+        <input type="text" class="anchor-input" id="anchor-input" placeholder="What is the user need?" maxlength="200" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="input-bar">
+        <div class="input-wrapper">
+            <input type="text" id="item-input" placeholder="Add a component..." maxlength="200" autocomplete="off" spellcheck="false">
+            <button class="btn btn-accent" id="add-btn">Add</button>
+        </div>
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+    <div class="list-layout">
+        <div class="items-list" id="items-list"></div>
+        <div class="list-sidebar">
+            <button class="btn-stage-float" id="btn-stage">Assign Stages <span class="arrow">&rarr;</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== STAGE VIEW ========== -->
+<div id="stage-view" class="stage-view">
+    <div class="map-header">
+        <div class="map-header-left">
+            <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
+            <h2 class="map-title km-home" id="title-stage" role="link" tabindex="0">Kartmakare</h2>
+        </div>
+    </div>
+    <div class="sort-arena" id="sort-arena">
+        <div class="sort-progress" id="sort-progress"></div>
+        <div class="sort-card-wrap" id="sort-card-wrap">
+            <div class="sort-card" id="sort-card"></div>
+        </div>
+        <div class="stage-targets" id="stage-targets"></div>
+        <div class="sort-footer">
+            <button class="btn-outline" id="btn-skip">Skip</button>
+        </div>
+        <div class="sort-done" id="sort-done" style="display:none;">
+            <h3>All done!</h3>
+            <p>Every component has a stage. Time to map them out.</p>
+            <button class="btn btn-accent" id="btn-done-map" style="margin-top:1rem;">Open Map</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== IMPORT VIEW ========== -->
+<div id="import-view" class="import-view">
+    <div class="map-header">
+        <div class="map-header-left">
+            <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
+            <h2 class="map-title km-home" id="title-import" role="link" tabindex="0">Kartmakare</h2>
+        </div>
+    </div>
+    <div class="import-arena">
+        <div class="drop-zone" id="drop-zone">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <h3 class="drop-zone-title">Drop your Kartmakare file here</h3>
+            <p class="drop-zone-sub">or <button type="button" class="btn-link" id="drop-zone-browse">browse</button> for one</p>
+            <div class="drop-zone-feedback" id="drop-zone-feedback" aria-live="polite"></div>
+        </div>
+        <p class="import-hint">Tip: on the desktop app, right-click the map and choose <em>Share via QR</em> to scan a map onto your phone.</p>
+    </div>
+</div>
+
+<!-- ========== MAP VIEW ========== -->
+<div id="map-view" class="map-view">
+    <div class="map-header">
+        <div class="map-header-left">
+            <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
+            <h2 class="map-title km-home" id="title-map" role="link" tabindex="0">Kartmakare</h2>
+        </div>
+        <div class="map-header-right">
+            <button class="btn" id="btn-map-assign" style="display:none;background:#15803d;padding:0.35rem 0.75rem;font-size:0.7rem;"></button>
+            <button class="btn-outline" id="btn-map-add">+ Add Component</button>
+            <div style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+                <button class="btn-outline" id="btn-map-export" style="border:none;border-radius:0;border-right:1px solid var(--border);margin:0;">Export</button>
+                <select id="export-format-select" style="border:none;background:none;padding:0.35rem 0.4rem;font-size:0.7rem;cursor:pointer;font-family:inherit;color:var(--text-muted);outline:none;">
+                    <option value="svg">SVG</option>
+                    <option value="png">PNG</option>
+                </select>
+            </div>
+            <button class="btn-outline" id="btn-map-back">Back to Components</button>
+        </div>
+    </div>
+    <div class="modal-overlay" id="add-item-modal">
+        <div class="modal">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <h3>Add Component to Map</h3>
+            <input type="text" class="modal-input" id="modal-item-input" placeholder="Component name..." maxlength="200" autocomplete="off" spellcheck="false">
+            <div class="modal-stages" id="modal-stages"></div>
+            <div class="modal-footer">
+                <button class="btn btn-accent" id="modal-add-btn" disabled>Add</button>
+            </div>
+        </div>
+    </div>
+    <div class="map-canvas" id="map-canvas">
+        <svg class="link-svg" id="link-svg"></svg>
+        <div class="col-sep" style="left:25%"></div>
+        <div class="col-sep" style="left:50%"></div>
+        <div class="col-sep" style="left:75%"></div>
+        <div class="col-header" style="left:0;width:25%">Genesis</div>
+        <div class="col-header" style="left:25%;width:25%">Custom Built</div>
+        <div class="col-header" style="left:50%;width:25%">Product</div>
+        <div class="col-header" style="left:75%;width:25%">Commodity</div>
+        <span class="y-label y-label-top">Visible</span>
+        <span class="y-label y-label-bottom">Invisible</span>
+    </div>
+</div>
+
+<div class="map-label-ctx" id="label-ctx-menu">
+    <div class="map-label-ctx-item" id="label-ctx-remove">Remove this label</div>
+</div>
+
+<div class="ctx-menu" id="ctx-menu">
+    <div class="ctx-menu-item" data-action="add-here"><span class="ctx-icon">&#9711;</span> Add Component Here</div>
+    <div class="ctx-menu-item" data-action="add-label"><span class="ctx-icon">T</span> Add Label</div>
+    <div class="ctx-menu-item" data-action="create-area"><span class="ctx-icon"><svg width="14" height="14" viewBox="0 0 14 14" style="vertical-align:middle"><path d="M2 7c0-3 2-5 5-5s5 1.5 5 5-1 5-5 5c-2 0-3.5-.5-4.2-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span> Create Area</div>
+    <div class="ctx-menu-item" data-action="delete-area" id="ctx-delete-area" style="display:none"><span class="ctx-icon">&times;</span> Delete This Area</div>
+    <div class="ctx-menu-item" data-action="clear-areas" id="ctx-clear-areas" style="display:none"><span class="ctx-icon">&times;</span> Clear All Areas</div>
+    <div class="ctx-menu-sep"></div>
+    <div class="ctx-menu-item" data-action="export-map"><span class="ctx-icon"></span> Export Map</div>
+    <div class="ctx-menu-sep"></div>
+    <div class="ctx-menu-item" data-action="save-data"><span class="ctx-icon"></span> Save Map Data</div>
+    <div class="ctx-menu-item" data-action="import-data"><span class="ctx-icon"></span> Import Map Data</div>
+    <div class="ctx-menu-sep"></div>
+    <div class="ctx-menu-item" data-action="share-qr"><span class="ctx-icon"></span> Share via QR</div>
+</div>
+
+<div class="modal-overlay" id="share-qr-modal">
+    <div class="modal share-qr-modal">
+        <button class="modal-close" id="share-qr-close">&times;</button>
+        <h3>Share via QR</h3>
+        <div class="share-qr-body" id="share-qr-body"></div>
+    </div>
+</div>
+<input type="file" id="import-file-input" accept=".json" style="display:none">
+
+<script src="are-you-sure.js"></script>
+<script src="qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

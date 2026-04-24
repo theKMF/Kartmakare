@@ -123,7 +123,7 @@
         <div class="map-header-right">
             <button class="btn" id="btn-map-assign" style="display:none;background:#15803d;padding:0.35rem 0.75rem;font-size:0.7rem;"></button>
             <button class="btn-outline" id="btn-map-add">+ Add Component</button>
-            <div style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+            <div class="desktop-only-export" style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;">
                 <button class="btn-outline" id="btn-map-export" style="border:none;border-radius:0;border-right:1px solid var(--border);margin:0;">Export</button>
                 <select id="export-format-select" style="border:none;background:none;padding:0.35rem 0.4rem;font-size:0.7rem;cursor:pointer;font-family:inherit;color:var(--text-muted);outline:none;">
                     <option value="svg">SVG</option>
@@ -131,6 +131,7 @@
                     <option value="json">Data File</option>
                 </select>
             </div>
+            <button class="btn-outline mobile-only-share" id="btn-map-share">Share as &hellip;</button>
             <button class="btn-outline" id="btn-map-back">Back to Components</button>
         </div>
     </div>
@@ -186,6 +187,41 @@
     </div>
 </div>
 <input type="file" id="import-file-input" accept=".json" style="display:none">
+
+<!-- ========== MOBILE BAR (touch devices only) ========== -->
+<div class="mobile-bar" id="mobile-bar" aria-hidden="true">
+    <div class="mobile-bar-hint" id="mobile-bar-hint"></div>
+    <div class="mobile-bar-buttons">
+        <button class="mobile-bar-btn" data-mode="move">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+            <span>Move</span>
+        </button>
+        <button class="mobile-bar-btn" data-mode="link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span>Link</span>
+        </button>
+        <button class="mobile-bar-btn" data-mode="create">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            <span>Create</span>
+        </button>
+        <button class="mobile-bar-btn mobile-bar-more" id="mobile-bar-more">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="19" cy="12" r="1.75"/></svg>
+            <span>More</span>
+        </button>
+    </div>
+</div>
+
+<div class="mobile-overflow" id="mobile-overflow">
+    <div class="mobile-overflow-item" data-action="add-label">Add Label</div>
+    <div class="mobile-overflow-item" data-action="create-area">Create Area</div>
+    <div class="mobile-overflow-item" data-action="evolve">Evolve</div>
+</div>
+
+<div class="share-menu" id="share-menu">
+    <div class="share-menu-item" data-share="link">Link</div>
+    <div class="share-menu-item" data-share="image">Image</div>
+    <div class="share-menu-item" data-share="qr">QR</div>
+</div>
 
 <script src="are-you-sure.js"></script>
 <script src="qrcode.js"></script>

@@ -1,3 +1,17 @@
+// ===== MOBILE DETECTION =====
+// Touch-only devices (phones, tablets without mouse) get the mobile UI.
+// `(pointer: coarse)` + `(hover: none)` matches real finger input — desktop
+// touchscreen laptops with a pointer still get the desktop UI.
+const IS_MOBILE = typeof window !== 'undefined'
+    && window.matchMedia
+    && window.matchMedia('(pointer: coarse) and (hover: none)').matches;
+if (IS_MOBILE) document.body.classList.add('mobile');
+
+// Mobile interaction mode — null = "reader" (pan/scroll only).
+let mobileMode = null;
+let mobileLabelPlaceMode = false;
+let mobileEvolvePending = false;
+
 // ===== CONSTANTS =====
 const STAGES = [
     { key: 'genesis',   label: 'Genesis',      color: '#ef4444' },
@@ -153,6 +167,10 @@ function showView(view) {
     else if (view === 'stage') { stageView.classList.add('active'); }
     else if (view === 'map') { mapView.classList.add('active'); renderMap(); }
     else if (view === 'import') { importView.classList.add('active'); resetDropZone(); }
+    // Toggle body.map-active so the mobile bar only shows on the map view.
+    document.body.classList.toggle('map-active', view === 'map');
+    // Leaving the map view always drops any active mobile mode.
+    if (view !== 'map' && IS_MOBILE) setMobileMode(null);
 }
 
 document.getElementById('btn-stage').addEventListener('click', () => {
@@ -765,6 +783,16 @@ async function gzipString(str) {
 async function gunzipToString(bytes) {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
     return await new Response(stream).text();
+}
+
+async function buildShareUrl() {
+    const json = JSON.stringify(encodeCompactV2());
+    const gz = await gzipString(json);
+    const payload = bytesToB64url(gz);
+    const base = location.origin === 'null' || location.protocol === 'file:'
+        ? location.href.split('#')[0]
+        : location.origin + location.pathname;
+    return base + '#k=' + payload;
 }
 
 const shareQrModal = document.getElementById('share-qr-modal');
@@ -1460,36 +1488,42 @@ function exportMapSVG() {
     downloadFile(buildExportSVGString(), 'wardley-map.svg', 'image/svg+xml;charset=utf-8');
 }
 
-function exportMapPNG() {
+function buildMapPNGBlob(scale = 2) {
     const rect = mapCanvas.getBoundingClientRect();
-    const scale = 2;
     const w = rect.width * scale;
     const h = rect.height * scale;
     const svgStr = buildExportSVGString();
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f8f8fa';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(url);
+            canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/png');
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG image failed to load')); };
+        img.src = url;
+    });
+}
 
-    const img = new Image();
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#f8f8fa';
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
+function exportMapPNG() {
+    buildMapPNGBlob(2).then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'wardley-map.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        canvas.toBlob((pngBlob) => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(pngBlob);
-            a.download = 'wardley-map.png';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
-        }, 'image/png');
-    };
-    img.src = url;
+    }).catch(err => showError('Could not export PNG: ' + (err.message || err)));
 }
 
 // ===== DATA LOAD/SAVE =====
@@ -1844,6 +1878,7 @@ function cancelConnect() {
     mapCanvas.classList.remove('connect-active');
     mapCanvas.style.cursor = '';
     renderLinks();
+    if (IS_MOBILE) updateMobileHint();
 }
 
 function completeConnect(toId) {
@@ -2346,12 +2381,20 @@ function renderMap() {
             if (e.target.closest('.map-bubble-connect') || e.target.closest('.map-bubble-evolve')) return;
             if (areaSelectMode) { toggleAreaItem(item.id); return; }
             if (connectMode || anchorConnectMode || evolveMode) return;
+            // On mobile, only drag in Move mode — other modes need taps to land as clicks.
+            if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
         });
         bubble.addEventListener('touchstart', (e) => {
             if (e.target.closest('.map-bubble-connect') || e.target.closest('.map-bubble-evolve')) return;
             if (areaSelectMode) { toggleAreaItem(item.id); return; }
+            // Mobile Evolve: long-press a bubble → ghost follows finger X → lift to place.
+            if (IS_MOBILE && mobileEvolvePending && !evolveMode) {
+                startMobileEvolveGesture(e, item);
+                return;
+            }
             if (connectMode || anchorConnectMode || evolveMode) return;
+            if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
         }, { passive: false });
 
@@ -2378,9 +2421,17 @@ function renderMap() {
                 completeAnchorConnect(item.id);
                 return;
             }
+            // Mobile Link mode: first tap starts connect, second tap completes it.
+            if (IS_MOBILE && mobileMode === 'link' && !connectMode) {
+                e.stopPropagation();
+                startConnect(item.id);
+                updateMobileHint();
+                return;
+            }
             if (connectMode && connectFromId && connectFromId !== item.id) {
                 e.stopPropagation();
                 completeConnect(item.id);
+                updateMobileHint();
             }
         });
 
@@ -2601,6 +2652,279 @@ function startMapDrag(e, item, bubble) {
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('mouseup', onUp);
     window.addEventListener('touchend', onUp);
+}
+
+// ===== MOBILE UI =====
+// All wiring is installed unconditionally but gated on IS_MOBILE at call sites,
+// so desktop is completely unaffected.
+
+const mobileBar = document.getElementById('mobile-bar');
+const mobileOverflow = document.getElementById('mobile-overflow');
+const mobileHintEl = document.getElementById('mobile-bar-hint');
+
+function updateMobileHint() {
+    if (!IS_MOBILE || !mobileHintEl) return;
+    if (mobileEvolvePending && !evolveMode) { mobileHintEl.textContent = 'Long-press a component to start evolving'; return; }
+    if (evolveMode) { mobileHintEl.textContent = 'Slide to position, lift to place'; return; }
+    if (mobileLabelPlaceMode) { mobileHintEl.textContent = 'Tap empty space to place the label'; return; }
+    if (areaSelectMode) { mobileHintEl.textContent = ''; return; }
+    if (mobileMode === 'move') mobileHintEl.textContent = 'Drag a component to move it';
+    else if (mobileMode === 'link') mobileHintEl.textContent = connectMode ? 'Tap the target component' : 'Tap a component to start a link';
+    else if (mobileMode === 'create') mobileHintEl.textContent = 'Long-press empty space to add a component';
+    else mobileHintEl.textContent = '';
+}
+
+function paintMobileBar() {
+    if (!mobileBar) return;
+    mobileBar.querySelectorAll('.mobile-bar-btn[data-mode]').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mobileMode);
+    });
+}
+
+function setMobileMode(mode) {
+    // Tapping the active mode again drops back to neutral (reader) mode.
+    if (mobileMode === mode) mode = null;
+    // Exit any submodes owned by the previous mode.
+    if (mobileMode === 'link' || mode !== 'link') {
+        if (connectMode) cancelConnect();
+    }
+    if (mobileLabelPlaceMode && mode !== null) mobileLabelPlaceMode = false;
+    if (mobileEvolvePending) mobileEvolvePending = false;
+    mobileMode = mode;
+    paintMobileBar();
+    updateMobileHint();
+}
+
+if (mobileBar) {
+    mobileBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mobile-bar-btn[data-mode]');
+        if (!btn) return;
+        setMobileMode(btn.dataset.mode);
+    });
+}
+
+// --- Overflow menu ---
+const mobileMoreBtn = document.getElementById('mobile-bar-more');
+if (mobileMoreBtn && mobileOverflow) {
+    mobileMoreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mobileOverflow.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+        if (!mobileOverflow.contains(e.target) && e.target !== mobileMoreBtn) {
+            mobileOverflow.classList.remove('open');
+        }
+    });
+    mobileOverflow.addEventListener('click', (e) => {
+        const item = e.target.closest('.mobile-overflow-item');
+        if (!item) return;
+        const action = item.dataset.action;
+        mobileOverflow.classList.remove('open');
+        // Any overflow action resets the bar mode first.
+        setMobileMode(null);
+        if (action === 'add-label') startMobileLabelPlace();
+        else if (action === 'create-area') enterAreaSelectMode();
+        else if (action === 'evolve') startMobileEvolveFlow();
+    });
+}
+
+// --- Share menu (mobile top-bar "Share as ...") ---
+const shareBtn = document.getElementById('btn-map-share');
+const shareMenu = document.getElementById('share-menu');
+if (shareBtn && shareMenu) {
+    shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (shareMenu.classList.contains('open')) { shareMenu.classList.remove('open'); return; }
+        const r = shareBtn.getBoundingClientRect();
+        shareMenu.style.top = (r.bottom + 4) + 'px';
+        shareMenu.style.right = Math.max(4, window.innerWidth - r.right) + 'px';
+        shareMenu.classList.add('open');
+    });
+    document.addEventListener('click', (e) => {
+        if (!shareMenu.contains(e.target) && e.target !== shareBtn) shareMenu.classList.remove('open');
+    });
+    shareMenu.addEventListener('click', async (e) => {
+        const item = e.target.closest('.share-menu-item');
+        if (!item) return;
+        shareMenu.classList.remove('open');
+        const kind = item.dataset.share;
+        if (kind === 'link') shareAsLink();
+        else if (kind === 'image') shareAsImage();
+        else if (kind === 'qr') openShareQR();
+    });
+}
+
+async function shareAsLink() {
+    try {
+        const url = await buildShareUrl();
+        const shareData = { url, title: 'Kartmakare map', text: 'Open this Wardley map in Kartmakare' };
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+            showError('Link copied to clipboard');
+        } else {
+            showError('Sharing not supported on this browser');
+        }
+    } catch (err) {
+        if (err && err.name !== 'AbortError') showError('Could not share link: ' + (err.message || err));
+    }
+}
+
+async function shareAsImage() {
+    try {
+        const blob = await buildMapPNGBlob(3);
+        const file = new File([blob], 'wardley-map.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'Kartmakare map' });
+        } else {
+            // Fallback: download the PNG
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'wardley-map.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    } catch (err) {
+        if (err && err.name !== 'AbortError') showError('Could not share image: ' + (err.message || err));
+    }
+}
+
+// --- Mobile Evolve: overflow action arms a pending state; long-press a bubble to start ---
+function startMobileEvolveFlow() {
+    mobileEvolvePending = true;
+    updateMobileHint();
+}
+
+function startMobileEvolveGesture(e, item) {
+    // Called from bubble touchstart when mobileEvolvePending is true.
+    e.preventDefault();
+    const t = e.touches[0];
+    const startX = t.clientX;
+    const startY = t.clientY;
+    let evolveStarted = false;
+
+    const timer = setTimeout(() => {
+        startEvolve(item);
+        evolveStarted = true;
+        updateMobileHint();
+    }, LONG_PRESS_MS);
+
+    function onMove(ev) {
+        const mt = ev.touches[0];
+        if (!mt) return;
+        if (!evolveStarted) {
+            const dx = mt.clientX - startX;
+            const dy = mt.clientY - startY;
+            if (Math.abs(dx) > LONG_PRESS_SLOP_PX || Math.abs(dy) > LONG_PRESS_SLOP_PX) {
+                clearTimeout(timer);
+                cleanup();
+            }
+            return;
+        }
+        const rect = mapCanvas.getBoundingClientRect();
+        const pctX = (mt.clientX - rect.left) / rect.width * 100;
+        if (evolveGhostEl) evolveGhostEl.style.left = Math.max(2, Math.min(98, pctX)) + '%';
+    }
+
+    function onEnd(ev) {
+        clearTimeout(timer);
+        if (evolveStarted) {
+            const et = (ev.changedTouches && ev.changedTouches[0]) || null;
+            if (et) {
+                const rect = mapCanvas.getBoundingClientRect();
+                const pctX = (et.clientX - rect.left) / rect.width * 100;
+                completeEvolve(pctX);
+            } else {
+                cancelEvolve();
+            }
+        }
+        cleanup();
+    }
+
+    function cleanup() {
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onEnd);
+        window.removeEventListener('touchcancel', onEnd);
+        mobileEvolvePending = false;
+        updateMobileHint();
+    }
+
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchend', onEnd);
+    window.addEventListener('touchcancel', onEnd);
+}
+
+// --- Create mode: long-press empty space ---
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP_PX = 10;
+let createPressTimer = null;
+let createPressStart = null;
+
+function cancelCreateLongPress() {
+    if (createPressTimer) { clearTimeout(createPressTimer); createPressTimer = null; }
+    createPressStart = null;
+}
+
+mapCanvas.addEventListener('touchstart', (e) => {
+    if (!IS_MOBILE || mobileMode !== 'create') return;
+    if (e.target.closest('.map-bubble') || e.target.closest('.map-label') || e.target.closest('.map-anchor')) return;
+    const t = e.touches[0];
+    createPressStart = { x: t.clientX, y: t.clientY };
+    createPressTimer = setTimeout(() => {
+        createPressTimer = null;
+        if (!createPressStart) return;
+        const rect = mapCanvas.getBoundingClientRect();
+        const pctX = (createPressStart.x - rect.left) / rect.width;
+        const pctY = (createPressStart.y - rect.top) / rect.height;
+        createPressStart = null;
+        const colIndex = Math.max(0, Math.min(3, Math.floor(pctX * 4)));
+        openAddModal();
+        modalPlacePosX = snapToGrid(Math.max(0.02, Math.min(0.98, pctX)));
+        modalPlacePosY = snapToGrid(Math.max(0.02, Math.min(0.98, 1 - pctY)));
+        selectModalStage(STAGES[colIndex].key);
+        setMobileMode(null);
+    }, LONG_PRESS_MS);
+}, { passive: true });
+
+mapCanvas.addEventListener('touchmove', (e) => {
+    if (!createPressStart) return;
+    const t = e.touches[0];
+    const dx = t.clientX - createPressStart.x;
+    const dy = t.clientY - createPressStart.y;
+    if (Math.abs(dx) > LONG_PRESS_SLOP_PX || Math.abs(dy) > LONG_PRESS_SLOP_PX) cancelCreateLongPress();
+}, { passive: true });
+
+mapCanvas.addEventListener('touchend', cancelCreateLongPress);
+mapCanvas.addEventListener('touchcancel', cancelCreateLongPress);
+
+// --- Add Label via tap-to-place (from overflow menu) ---
+function startMobileLabelPlace() {
+    mobileLabelPlaceMode = true;
+    mapCanvas.style.cursor = 'crosshair';
+    updateMobileHint();
+}
+
+mapCanvas.addEventListener('click', (e) => {
+    if (!mobileLabelPlaceMode) return;
+    if (e.target.closest('.map-bubble') || e.target.closest('.map-label') || e.target.closest('.map-anchor')) return;
+    mobileLabelPlaceMode = false;
+    mapCanvas.style.cursor = '';
+    ctxClickX = e.clientX;
+    ctxClickY = e.clientY;
+    addLabelAtClick();
+    updateMobileHint();
+}, true); // capture so it runs before the canvas cancel-connect click
+
+// --- Suppress native long-press context menu and the desktop ctx menu on mobile ---
+if (IS_MOBILE) {
+    mapCanvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // block the desktop ctx-menu handler from opening
+    }, true);
 }
 
 // ===== CONSENT =====

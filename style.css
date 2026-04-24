@@ -249,7 +249,18 @@ body {
 .km-home { cursor: pointer; transition: color 0.15s; }
 .km-home:hover, .km-home:focus-visible { color: var(--accent); outline: none; }
 
-.map-canvas { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+.map-canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+.map-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+
+/* Segmented zoom toggle (Full / Half / Quarter) — shown on mobile only */
+.map-zoom-toggle { display: none; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.map-zoom-btn {
+    background: none; border: none; border-right: 1px solid var(--border);
+    padding: 0.3rem 0.55rem; font-size: 0.65rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; font-family: inherit;
+}
+.map-zoom-btn:last-child { border-right: none; }
+.map-zoom-btn.active { background: var(--accent-light); color: var(--accent); }
 
 .col-sep { position: absolute; top: 0; bottom: 0; width: 5px; background: #fff; transform: translateX(-50%); z-index: 1; pointer-events: none; }
 
@@ -353,6 +364,24 @@ body {
 .map-bubble:hover .map-bubble-evolve { opacity: 1; }
 .map-bubble.dragging .map-bubble-evolve { opacity: 0; pointer-events: none; }
 .map-bubble.evolved .map-bubble-evolve { display: none; }
+
+/* Success pulse when a long-press successfully arms Evolve */
+.evolve-pulse {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    border-radius: 50%;
+    background: transparent;
+    border: 3px solid var(--accent);
+    width: 24px;
+    height: 24px;
+    z-index: 21;
+    animation: evolvePulse 0.75s ease-out forwards;
+}
+@keyframes evolvePulse {
+    0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.8); }
+    100% { opacity: 0;   transform: translate(-50%, -50%) scale(4.5); }
+}
 
 /* Evolution placement ghost */
 .evolve-ghost {
@@ -516,8 +545,44 @@ body.mobile .map-header { flex-wrap: wrap; padding: 0.5rem 0.75rem; gap: 0.35rem
 body.mobile .map-header-right { gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
 body.mobile .map-header-right .btn-outline { padding: 0.3rem 0.55rem; font-size: 0.65rem; }
 body.mobile #btn-map-add { display: none; }
+body.mobile #btn-map-back { display: none; }
 body.mobile .desktop-only-export { display: none; }
 body.mobile .map-title { font-size: 1rem; }
+body.mobile .map-zoom-toggle { display: inline-flex; }
+
+/* Zoom modes — widen the canvas inside its wrap, let wrap scroll horizontally */
+body.mobile.zoom-half .map-canvas { width: 200%; }
+body.mobile.zoom-quarter .map-canvas { width: 400%; }
+body.mobile.zoom-half .map-canvas-wrap,
+body.mobile.zoom-quarter .map-canvas-wrap { overflow-x: auto; overflow-y: hidden; }
+
+/* Hide scrollbars while keeping wheel/touch scroll */
+body.mobile .map-canvas-wrap { scrollbar-width: none; -ms-overflow-style: none; }
+body.mobile .map-canvas-wrap::-webkit-scrollbar { display: none; }
+
+/* Desktop Export split: style moved out of inline so `display: none` on mobile can win */
+.desktop-only-export {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.desktop-only-export #btn-map-export {
+    border: none;
+    border-radius: 0;
+    border-right: 1px solid var(--border);
+    margin: 0;
+}
+.desktop-only-export #export-format-select {
+    border: none;
+    background: none;
+    padding: 0.35rem 0.4rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text-muted);
+    outline: none;
+}
 
 /* Desktop hides the mobile-only Share button */
 .mobile-only-share { display: none; }

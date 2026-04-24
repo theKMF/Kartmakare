@@ -123,15 +123,20 @@
         <div class="map-header-right">
             <button class="btn" id="btn-map-assign" style="display:none;background:#15803d;padding:0.35rem 0.75rem;font-size:0.7rem;"></button>
             <button class="btn-outline" id="btn-map-add">+ Add Component</button>
-            <div class="desktop-only-export" style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;">
-                <button class="btn-outline" id="btn-map-export" style="border:none;border-radius:0;border-right:1px solid var(--border);margin:0;">Export</button>
-                <select id="export-format-select" style="border:none;background:none;padding:0.35rem 0.4rem;font-size:0.7rem;cursor:pointer;font-family:inherit;color:var(--text-muted);outline:none;">
+            <div class="desktop-only-export">
+                <button class="btn-outline" id="btn-map-export">Export</button>
+                <select id="export-format-select">
                     <option value="svg">SVG</option>
                     <option value="png">PNG</option>
                     <option value="json">Data File</option>
                 </select>
             </div>
             <button class="btn-outline mobile-only-share" id="btn-map-share">Share as &hellip;</button>
+            <div class="map-zoom-toggle" id="map-zoom-toggle" role="group" aria-label="Map zoom">
+                <button class="map-zoom-btn active" data-zoom="full">Full</button>
+                <button class="map-zoom-btn" data-zoom="half">Half</button>
+                <button class="map-zoom-btn" data-zoom="quarter">Quarter</button>
+            </div>
             <button class="btn-outline" id="btn-map-back">Back to Components</button>
         </div>
     </div>
@@ -146,17 +151,19 @@
             </div>
         </div>
     </div>
-    <div class="map-canvas" id="map-canvas">
-        <svg class="link-svg" id="link-svg"></svg>
-        <div class="col-sep" style="left:25%"></div>
-        <div class="col-sep" style="left:50%"></div>
-        <div class="col-sep" style="left:75%"></div>
-        <div class="col-header" style="left:0;width:25%">Genesis</div>
-        <div class="col-header" style="left:25%;width:25%">Custom Built</div>
-        <div class="col-header" style="left:50%;width:25%">Product</div>
-        <div class="col-header" style="left:75%;width:25%">Commodity</div>
-        <span class="y-label y-label-top">Visible</span>
-        <span class="y-label y-label-bottom">Invisible</span>
+    <div class="map-canvas-wrap" id="map-canvas-wrap">
+        <div class="map-canvas" id="map-canvas">
+            <svg class="link-svg" id="link-svg"></svg>
+            <div class="col-sep" style="left:25%"></div>
+            <div class="col-sep" style="left:50%"></div>
+            <div class="col-sep" style="left:75%"></div>
+            <div class="col-header" style="left:0;width:25%">Genesis</div>
+            <div class="col-header" style="left:25%;width:25%">Custom Built</div>
+            <div class="col-header" style="left:50%;width:25%">Product</div>
+            <div class="col-header" style="left:75%;width:25%">Commodity</div>
+            <span class="y-label y-label-top">Visible</span>
+            <span class="y-label y-label-bottom">Invisible</span>
+        </div>
     </div>
 </div>
 

@@ -2387,7 +2387,13 @@ function renderMap() {
         });
         bubble.addEventListener('touchstart', (e) => {
             if (e.target.closest('.map-bubble-connect') || e.target.closest('.map-bubble-evolve')) return;
-            if (areaSelectMode) { toggleAreaItem(item.id); return; }
+            if (areaSelectMode) {
+                // preventDefault blocks the synthesized mousedown that would fire the
+                // same toggle a second time on touch devices and net out to no change.
+                e.preventDefault();
+                toggleAreaItem(item.id);
+                return;
+            }
             // Mobile Evolve: long-press a bubble → ghost follows finger X → lift to place.
             if (IS_MOBILE && mobileEvolvePending && !evolveMode) {
                 startMobileEvolveGesture(e, item);
@@ -2728,6 +2734,37 @@ if (mobileMoreBtn && mobileOverflow) {
     });
 }
 
+// --- Zoom toggle (Full / Half / Quarter) — mobile only, widens the canvas so
+//     the wrap scrolls horizontally. Zoom classes sit on <body> so CSS can target
+//     both wrap (overflow) and canvas (width) with one media-style class switch. ---
+const mapZoomToggle = document.getElementById('map-zoom-toggle');
+
+function setMapZoom(level) {
+    document.body.classList.remove('zoom-full', 'zoom-half', 'zoom-quarter');
+    document.body.classList.add('zoom-' + level);
+    if (mapZoomToggle) {
+        mapZoomToggle.querySelectorAll('.map-zoom-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.zoom === level);
+        });
+    }
+    // Reset horizontal scroll so we always start at the Genesis edge after a zoom.
+    const wrap = document.getElementById('map-canvas-wrap');
+    if (wrap) wrap.scrollLeft = 0;
+    // Canvas width changed — rebuild link SVG at the new dimensions.
+    if (mapView.classList.contains('active')) {
+        requestAnimationFrame(() => renderLinks());
+    }
+}
+
+if (mapZoomToggle) {
+    mapZoomToggle.addEventListener('click', (e) => {
+        const btn = e.target.closest('.map-zoom-btn');
+        if (!btn) return;
+        setMapZoom(btn.dataset.zoom);
+    });
+}
+setMapZoom('full');
+
 // --- Share menu (mobile top-bar "Share as ...") ---
 const shareBtn = document.getElementById('btn-map-share');
 const shareMenu = document.getElementById('share-menu');
@@ -2794,6 +2831,17 @@ async function shareAsImage() {
 }
 
 // --- Mobile Evolve: overflow action arms a pending state; long-press a bubble to start ---
+const EVOLVE_LONG_PRESS_MS = 200;
+
+function showEvolvePulse(item) {
+    const pulse = document.createElement('div');
+    pulse.className = 'evolve-pulse';
+    pulse.style.left = (item.posX * 100) + '%';
+    pulse.style.top = ((1 - item.posY) * 100) + '%';
+    mapCanvas.appendChild(pulse);
+    setTimeout(() => pulse.remove(), 800);
+}
+
 function startMobileEvolveFlow() {
     mobileEvolvePending = true;
     updateMobileHint();
@@ -2808,10 +2856,11 @@ function startMobileEvolveGesture(e, item) {
     let evolveStarted = false;
 
     const timer = setTimeout(() => {
+        showEvolvePulse(item);
         startEvolve(item);
         evolveStarted = true;
         updateMobileHint();
-    }, LONG_PRESS_MS);
+    }, EVOLVE_LONG_PRESS_MS);
 
     function onMove(ev) {
         const mt = ev.touches[0];

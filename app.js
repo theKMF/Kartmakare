@@ -2772,13 +2772,20 @@ if (shareBtn && shareMenu) {
     shareBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (shareMenu.classList.contains('open')) { shareMenu.classList.remove('open'); return; }
+        // Anchor to the viewport's right edge regardless of where the button
+        // ended up horizontally — on narrow mobile the header can wrap and the
+        // button may not be near the right edge, which used to put the menu
+        // off-screen when positioned relative to the button.
         const r = shareBtn.getBoundingClientRect();
         shareMenu.style.top = (r.bottom + 4) + 'px';
-        shareMenu.style.right = Math.max(4, window.innerWidth - r.right) + 'px';
+        shareMenu.style.right = '0.5rem';
+        shareMenu.style.left = 'auto';
         shareMenu.classList.add('open');
     });
     document.addEventListener('click', (e) => {
-        if (!shareMenu.contains(e.target) && e.target !== shareBtn) shareMenu.classList.remove('open');
+        // shareBtn.contains covers clicks on child nodes of the button (text node etc).
+        if (shareMenu.contains(e.target) || shareBtn.contains(e.target)) return;
+        shareMenu.classList.remove('open');
     });
     shareMenu.addEventListener('click', async (e) => {
         const item = e.target.closest('.share-menu-item');

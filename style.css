@@ -671,11 +671,26 @@ body.mobile .area-selection-bar { top: auto; bottom: calc(64px + env(safe-area-i
 
 /* Share menu — popover anchored under the Share button */
 .share-menu {
-    display: none; position: fixed; z-index: 410;
-    background: var(--surface); border: 1px solid var(--border);
-    box-shadow: var(--shadow-lg); min-width: 140px;
-    padding: 0.3rem 0; font-size: 0.9rem;
+    display: none;
+    position: fixed;
+    z-index: 410;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    min-width: 180px;
+    padding: 0.3rem 0;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.3;
 }
 .share-menu.open { display: block; }
-.share-menu-item { padding: 0.7rem 1rem; cursor: pointer; color: var(--text); }
+.share-menu-item {
+    padding: 0.8rem 1.1rem;
+    cursor: pointer;
+    color: var(--text);
+    font-weight: 500;
+    white-space: nowrap;
+}
+.share-menu-item:hover,
 .share-menu-item:active { background: var(--accent-light); }

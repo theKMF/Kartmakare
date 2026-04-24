@@ -3014,3 +3014,40 @@ async function init() {
     if (!imported) renderList();
 }
 if (checkConsent()) init();
+
+// ===== PWA / SERVICE WORKER =====
+// Registers sw.js (only possible over https or localhost). When a new service
+// worker is detected, we tell it to skipWaiting, then reload once it takes
+// control so users always run the freshest code after a deploy. The cache
+// version string lives in sw.js and is bumped on each release.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (!newWorker) return;
+                newWorker.addEventListener('statechange', () => {
+                    // Only skipWaiting if there's already an active SW controlling
+                    // this page — otherwise this is the first install and we don't
+                    // need to force-activate.
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                });
+            });
+            // Check for a fresh sw.js whenever the tab becomes visible again.
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') reg.update();
+            });
+        }).catch(() => { /* SW unsupported or blocked — continue online-only */ });
+
+        // When the controlling SW changes (new version took over), reload once so
+        // the page runs against the fresh cache.
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloading) return;
+            reloading = true;
+            window.location.reload();
+        });
+    });
+}

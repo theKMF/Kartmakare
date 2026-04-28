@@ -31,7 +31,7 @@ body {
 
 /* Site logo - inline in each header */
 .site-logo { display: inline-flex; align-items: center; flex-shrink: 0; }
-.site-logo img { height: 42px; width: auto; display: block; }
+.site-logo img { height: 24px; width: auto; display: block; }
 
 /* ========== SHARED ========== */
 
@@ -54,15 +54,15 @@ body {
 
 .error-msg { max-width: 900px; margin: -0.75rem auto 0.75rem; padding: 0 1.5rem; color: var(--down); font-size: 0.8rem; min-height: 1.2rem; }
 .map-cta { max-width: 900px; margin: 0 auto; padding: 0 1.5rem 1.25rem; display: flex; justify-content: center; align-items: center; gap: 1rem; }
-.btn-map-hero { background: var(--text); color: #fff; border: none; font-size: 0.95rem; font-weight: 600; padding: 0.65rem 2rem; cursor: pointer; transition: background 0.15s, opacity 0.15s, transform 0.1s; font-family: inherit; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 0.5rem; }
+.btn-map-hero { background: var(--text); color: #fff; border: none; font-size: 0.8rem; font-weight: 600; padding: 0.55rem 1.5rem; cursor: pointer; transition: background 0.15s, opacity 0.15s, transform 0.1s; font-family: inherit; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 0.5rem; }
 .btn-map-hero:hover { background: #000; }
 .btn-map-hero:active { transform: scale(0.97); }
 .btn-map-hero:disabled { opacity: 0.25; cursor: not-allowed; }
 .btn-map-hero:disabled:hover { background: var(--text); }
 .btn-map-hero svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-width: 2; }
-.btn-reset-hero { background: #dc2626; font-size: 0.8rem; padding: 0.55rem 1.5rem; }
+.btn-reset-hero { background: #dc2626; }
 .btn-reset-hero:hover { background: #b91c1c; }
-.btn-import-hero { background: var(--accent); font-size: 0.8rem; padding: 0.55rem 1.5rem; }
+.btn-import-hero { background: var(--accent); }
 .btn-import-hero:hover { background: #4338ca; }
 .btn-map-hero svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .empty-state { text-align: center; padding: 5rem 2rem; color: var(--text-dim); }
@@ -265,10 +265,15 @@ body {
 .map-header {
     padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
     background: var(--surface); border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0;
+    position: relative;
 }
 .map-header-left { display: flex; align-items: center; gap: 0.75rem; }
 .map-header-right { display: flex; align-items: center; gap: 0.5rem; }
-.map-title { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+.map-title {
+    font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    pointer-events: auto;
+}
 
 .km-home { cursor: pointer; transition: color 0.15s; }
 .km-home:hover, .km-home:focus-visible { color: var(--accent); outline: none; }
@@ -645,7 +650,9 @@ body.mobile .list-layout { flex-direction: column; padding: 0 1rem 6rem; }
 body.mobile .list-sidebar { flex: 0 0 auto; position: static; width: 100%; padding-top: 0.25rem; }
 body.mobile .btn-stage-float { width: 100%; justify-content: center; }
 body.mobile .map-cta { flex-wrap: wrap; gap: 0.5rem; padding: 0 1rem 1rem; }
-body.mobile .btn-map-hero { font-size: 0.85rem; padding: 0.55rem 1.2rem; }
+body.mobile .btn-map-hero { font-size: 0.75rem; padding: 0.5rem 0.8rem; gap: 0.35rem; }
+body.mobile .btn-map-hero svg { width: 14px; height: 14px; }
+body.mobile .site-logo img { height: 20px; }
 
 /* Import view: tighter padding on narrow viewports */
 body.mobile .import-arena { padding: 1.5rem 1rem 6rem; }

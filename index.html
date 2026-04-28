@@ -42,6 +42,9 @@
             <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
             <h2 class="map-title km-home" id="title-list" role="link" tabindex="0">Kartmakare</h2>
         </div>
+        <div class="map-header-right">
+            <button class="btn-about" data-about-trigger type="button">About</button>
+        </div>
     </div>
     <div class="map-cta">
         <button class="btn-map-hero" id="btn-map" disabled>
@@ -83,6 +86,9 @@
             <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
             <h2 class="map-title km-home" id="title-stage" role="link" tabindex="0">Kartmakare</h2>
         </div>
+        <div class="map-header-right">
+            <button class="btn-about" data-about-trigger type="button">About</button>
+        </div>
     </div>
     <div class="sort-arena" id="sort-arena">
         <div class="sort-progress" id="sort-progress"></div>
@@ -107,6 +113,9 @@
         <div class="map-header-left">
             <a href="https://www.twofour.com" target="_blank" rel="noopener" class="site-logo"><img src="twofour-logo.svg" alt="TwoFour"></a>
             <h2 class="map-title km-home" id="title-import" role="link" tabindex="0">Kartmakare</h2>
+        </div>
+        <div class="map-header-right">
+            <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
     <div class="import-arena">
@@ -139,12 +148,8 @@
                 </select>
             </div>
             <button class="btn-outline mobile-only-share" id="btn-map-share">Share as &hellip;</button>
-            <div class="map-zoom-toggle" id="map-zoom-toggle" role="group" aria-label="Map zoom">
-                <button class="map-zoom-btn active" data-zoom="full">Full</button>
-                <button class="map-zoom-btn" data-zoom="half">Half</button>
-                <button class="map-zoom-btn" data-zoom="quarter">Quarter</button>
-            </div>
             <button class="btn-outline" id="btn-map-back">Back to Components</button>
+            <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
     <div class="modal-overlay" id="add-item-modal">
@@ -157,6 +162,14 @@
                 <button class="btn btn-accent" id="modal-add-btn" disabled>Add</button>
             </div>
         </div>
+    </div>
+    <div class="map-subbar" id="map-subbar">
+        <div class="map-zoom-toggle" id="map-zoom-toggle" role="group" aria-label="Map zoom">
+            <button class="map-zoom-btn active" data-zoom="full">Full</button>
+            <button class="map-zoom-btn" data-zoom="half">Half</button>
+            <button class="map-zoom-btn" data-zoom="quarter">Quarter</button>
+        </div>
+        <button class="btn-outline map-subbar-share" id="map-subbar-share" type="button">Share Map</button>
     </div>
     <div class="map-canvas-wrap" id="map-canvas-wrap">
         <div class="map-canvas" id="map-canvas">
@@ -191,6 +204,22 @@
     <div class="ctx-menu-item" data-action="import-data"><span class="ctx-icon"></span> Import Map Data</div>
     <div class="ctx-menu-sep"></div>
     <div class="ctx-menu-item" data-action="share-qr"><span class="ctx-icon"></span> Share via QR</div>
+</div>
+
+<div class="modal-overlay" id="about-modal">
+    <div class="modal about-modal">
+        <button class="modal-close" id="about-close" aria-label="Close">&times;</button>
+        <h3>About Kartmakare</h3>
+        <p class="about-blurb">
+            Kartmakare is my attempt to make the perfect Wardley Mapping tool.
+            It's released under the
+            <a href="https://polyformproject.org/licenses/noncommercial/1.0.0.0/" target="_blank" rel="noopener">PolyForm Noncommercial 1.0.0</a>
+            license &mdash; free to use, modify and share for any non-commercial purpose.
+        </p>
+        <div class="about-qr" id="about-qr"></div>
+        <div class="about-url" id="about-url" role="button" tabindex="0" title="Click to copy"></div>
+        <button class="btn btn-accent about-share-btn" id="about-share" type="button">Share Kartmakare</button>
+    </div>
 </div>
 
 <div class="modal-overlay" id="share-qr-modal">

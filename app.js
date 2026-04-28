@@ -827,6 +827,86 @@ async function openShareQR() {
     }
 }
 
+// ============ ABOUT MODAL ============
+const KARTMAKARE_CANONICAL_URL = 'https://thekmf.github.io/Kartmakare/';
+function getKartmakareShareUrl() {
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+        return location.origin + location.pathname.replace(/index\.html$/, '');
+    }
+    return KARTMAKARE_CANONICAL_URL;
+}
+const aboutModal = document.getElementById('about-modal');
+const aboutQr = document.getElementById('about-qr');
+const aboutUrl = document.getElementById('about-url');
+let aboutRendered = false;
+
+function openAbout() {
+    aboutModal.classList.add('open');
+    if (!aboutRendered) {
+        const url = getKartmakareShareUrl();
+        aboutUrl.textContent = url;
+        try {
+            const qr = KmQR.encode(url);
+            if (qr) aboutQr.innerHTML = KmQR.renderSVG(qr.modules, { scale: 6, margin: 4 });
+        } catch (_) { /* QR is non-critical */ }
+        aboutRendered = true;
+    }
+}
+function closeAbout() {
+    aboutModal.classList.remove('open');
+    aboutUrl.classList.remove('copied');
+}
+
+document.querySelectorAll('[data-about-trigger]').forEach(b => b.addEventListener('click', openAbout));
+document.getElementById('about-close').addEventListener('click', closeAbout);
+aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && aboutModal.classList.contains('open')) closeAbout();
+});
+
+aboutUrl.addEventListener('click', async () => {
+    const url = aboutUrl.textContent;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+            aboutUrl.classList.add('copied');
+            const original = aboutUrl.textContent;
+            aboutUrl.textContent = 'Copied!';
+            setTimeout(() => {
+                aboutUrl.textContent = original;
+                aboutUrl.classList.remove('copied');
+            }, 1200);
+        }
+    } catch (_) { /* clipboard may be blocked, ignore */ }
+});
+
+document.getElementById('about-share').addEventListener('click', async () => {
+    const url = getKartmakareShareUrl();
+    const shareData = {
+        url,
+        title: 'Kartmakare',
+        text: 'Kartmakare — a Wardley Mapping tool',
+    };
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+            aboutUrl.classList.add('copied');
+            aboutUrl.textContent = 'Link copied to clipboard';
+            setTimeout(() => {
+                aboutUrl.textContent = url;
+                aboutUrl.classList.remove('copied');
+            }, 1500);
+        }
+    } catch (err) {
+        if (err && err.name !== 'AbortError') {
+            // best-effort fallback
+            console.warn('Share failed:', err);
+        }
+    }
+});
+
 async function tryHashImport() {
     const hash = location.hash || '';
     const match = hash.match(/^#k=([A-Za-z0-9_-]+)$/);
@@ -2714,6 +2794,8 @@ const mobileMoreBtn = document.getElementById('mobile-bar-more');
 if (mobileMoreBtn && mobileOverflow) {
     mobileMoreBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const shareMenuEl = document.getElementById('share-menu');
+        if (shareMenuEl) shareMenuEl.classList.remove('open');
         mobileOverflow.classList.toggle('open');
     });
     document.addEventListener('click', (e) => {
@@ -2734,12 +2816,61 @@ if (mobileMoreBtn && mobileOverflow) {
     });
 }
 
+// --- Subbar "Share Map" button — opens the existing share-menu, anchored below the button.
+const subbarShareBtn = document.getElementById('map-subbar-share');
+if (subbarShareBtn) {
+    subbarShareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById('share-menu');
+        if (!menu) return;
+        mobileOverflow.classList.remove('open');
+        if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+        const r = subbarShareBtn.getBoundingClientRect();
+        menu.style.bottom = 'auto';
+        menu.style.top = (r.bottom + 4) + 'px';
+        menu.style.right = '0.5rem';
+        menu.style.left = 'auto';
+        menu.classList.add('open');
+    });
+}
+
 // --- Zoom toggle (Full / Half / Quarter) — mobile only, widens the canvas so
 //     the wrap scrolls horizontally. Zoom classes sit on <body> so CSS can target
 //     both wrap (overflow) and canvas (width) with one media-style class switch. ---
 const mapZoomToggle = document.getElementById('map-zoom-toggle');
 
+const ZOOM_DURATION_MS = 100;
+const ZOOM_WIDTH_MULTIPLIERS = { full: 1, half: 2, quarter: 4 };
+let zoomScrollAnimRaf = null;
+
+function animateScrollLeft(el, target, duration) {
+    if (zoomScrollAnimRaf) cancelAnimationFrame(zoomScrollAnimRaf);
+    const start = el.scrollLeft;
+    const delta = target - start;
+    if (Math.abs(delta) < 0.5) { el.scrollLeft = target; zoomScrollAnimRaf = null; return; }
+    const t0 = performance.now();
+    const step = (now) => {
+        const t = Math.min(1, (now - t0) / duration);
+        const eased = 1 - (1 - t) * (1 - t); // ease-out quadratic
+        el.scrollLeft = start + delta * eased;
+        if (t < 1) zoomScrollAnimRaf = requestAnimationFrame(step);
+        else zoomScrollAnimRaf = null;
+    };
+    zoomScrollAnimRaf = requestAnimationFrame(step);
+}
+
 function setMapZoom(level) {
+    const wrap = document.getElementById('map-canvas-wrap');
+
+    // Capture the visible centre as a fraction of the current canvas width
+    // BEFORE applying the new class. After the class change, the canvas width
+    // changes immediately (the CSS transition only animates the visual), so we
+    // can compute the target scrollLeft right away and animate to it in lockstep.
+    let centerFraction = 0.5;
+    if (wrap && wrap.scrollWidth > 0) {
+        centerFraction = (wrap.scrollLeft + wrap.clientWidth / 2) / wrap.scrollWidth;
+    }
+
     document.body.classList.remove('zoom-full', 'zoom-half', 'zoom-quarter');
     document.body.classList.add('zoom-' + level);
     if (mapZoomToggle) {
@@ -2747,12 +2878,19 @@ function setMapZoom(level) {
             b.classList.toggle('active', b.dataset.zoom === level);
         });
     }
-    // Reset horizontal scroll so we always start at the Genesis edge after a zoom.
-    const wrap = document.getElementById('map-canvas-wrap');
-    if (wrap) wrap.scrollLeft = 0;
-    // Canvas width changed — rebuild link SVG at the new dimensions.
+
+    if (wrap) {
+        const mult = ZOOM_WIDTH_MULTIPLIERS[level] || 1;
+        const targetScrollWidth = wrap.clientWidth * mult;
+        const maxScroll = Math.max(0, targetScrollWidth - wrap.clientWidth);
+        const rawTarget = centerFraction * targetScrollWidth - wrap.clientWidth / 2;
+        const targetScrollLeft = Math.max(0, Math.min(rawTarget, maxScroll));
+        animateScrollLeft(wrap, targetScrollLeft, ZOOM_DURATION_MS);
+    }
+
+    // Canvas width changed — rebuild link SVG once the transition has settled.
     if (mapView.classList.contains('active')) {
-        requestAnimationFrame(() => renderLinks());
+        setTimeout(renderLinks, ZOOM_DURATION_MS + 20);
     }
 }
 

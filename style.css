@@ -234,6 +234,30 @@ body {
 }
 .share-qr-error { color: #b91c1c; font-size: 0.85rem; text-align: center; padding: 1.5rem 0; }
 
+/* ========== ABOUT BUTTON + MODAL ========== */
+.btn-about {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 4px 10px;
+    font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+    cursor: pointer; font-family: inherit;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.btn-about:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+.about-modal { width: 360px; }
+.about-blurb { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin-bottom: 1rem; }
+.about-blurb a { color: var(--accent); text-underline-offset: 2px; }
+.about-qr { display: flex; justify-content: center; margin: 0.25rem 0 0.85rem; }
+.about-qr svg { width: 200px; height: 200px; background: #fff; }
+.about-url {
+    width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 0.7rem;
+    padding: 0.5rem 0.6rem; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text-muted); word-break: break-all; text-align: center;
+    margin-bottom: 0.85rem; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.about-url:hover { border-color: var(--accent); color: var(--text); }
+.about-url.copied { border-color: #15803d; color: #15803d; }
+.about-share-btn { width: 100%; padding: 0.65rem 1rem; }
+
 /* ========== MAP VIEW ========== */
 .map-view { display: none; height: 100vh; min-height: 800px; flex-direction: column; overflow: hidden; min-width: 900px; }
 .map-view.active { display: flex; }
@@ -550,7 +574,10 @@ body.mobile .desktop-only-export { display: none; }
 body.mobile .map-title { font-size: 1rem; }
 body.mobile .map-zoom-toggle { display: inline-flex; }
 
-/* Zoom modes — widen the canvas inside its wrap, let wrap scroll horizontally */
+/* Zoom modes — widen the canvas inside its wrap, let wrap scroll horizontally.
+   The width transition is paired in JS with an animated scrollLeft adjustment
+   so the visible centre stays in view (clamped at the canvas edges). */
+body.mobile .map-canvas { transition: width 0.1s ease-out; }
 body.mobile.zoom-half .map-canvas { width: 200%; }
 body.mobile.zoom-quarter .map-canvas { width: 400%; }
 body.mobile.zoom-half .map-canvas-wrap,
@@ -584,9 +611,19 @@ body.mobile .map-canvas-wrap::-webkit-scrollbar { display: none; }
     outline: none;
 }
 
-/* Desktop hides the mobile-only Share button */
+/* Mobile-only Share button — header version is hidden; Share lives in the mobile subbar instead */
 .mobile-only-share { display: none; }
-body.mobile .mobile-only-share { display: inline-block; }
+
+/* Mobile subbar — sits directly beneath the map header on touch devices,
+   carrying the zoom toggle and a Share Map button. Hidden on desktop. */
+.map-subbar { display: none; }
+body.mobile .map-subbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.5rem; padding: 0.4rem 0.75rem;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.map-subbar-share { padding: 0.3rem 0.65rem; font-size: 0.65rem; }
 
 /* Hide hover-only UI on bubbles and anchor */
 body.mobile .map-bubble-connect,

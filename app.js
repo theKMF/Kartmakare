@@ -3162,21 +3162,50 @@ if (checkConsent()) init();
 
 // ===== PWA / SERVICE WORKER =====
 // Registers sw.js (only possible over https or localhost). When a new service
-// worker is detected, we tell it to skipWaiting, then reload once it takes
-// control so users always run the freshest code after a deploy. The cache
-// version string lives in sw.js and is bumped on each release.
+// worker is detected we DON'T auto-reload — instead we surface an "Update"
+// toast so the user picks the moment. Clicking the toast button posts
+// SKIP_WAITING to the waiting worker, which triggers controllerchange and
+// reloads the page on the new code.
+let waitingWorker = null;
+const updateToast = document.getElementById('update-toast');
+function showUpdateToast(worker) {
+    waitingWorker = worker;
+    if (updateToast) updateToast.classList.add('show');
+}
+function hideUpdateToast() {
+    if (updateToast) updateToast.classList.remove('show');
+}
+const updateBtn = document.getElementById('update-toast-btn');
+const updateClose = document.getElementById('update-toast-close');
+if (updateBtn) updateBtn.addEventListener('click', () => {
+    if (waitingWorker) {
+        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+        // Leave the toast visible until controllerchange fires; the reload
+        // that follows replaces the page entirely.
+    } else {
+        // No worker reference — fall back to a simple reload (unlikely path).
+        window.location.reload();
+    }
+});
+if (updateClose) updateClose.addEventListener('click', hideUpdateToast);
+
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+            // A worker may already be waiting (user installed update earlier
+            // but didn't click; page reloaded for another reason). Surface it.
+            if (reg.waiting && navigator.serviceWorker.controller) {
+                showUpdateToast(reg.waiting);
+            }
             reg.addEventListener('updatefound', () => {
                 const newWorker = reg.installing;
                 if (!newWorker) return;
                 newWorker.addEventListener('statechange', () => {
-                    // Only skipWaiting if there's already an active SW controlling
-                    // this page — otherwise this is the first install and we don't
-                    // need to force-activate.
+                    // Only show the toast if there's already an active SW
+                    // controlling this page — otherwise this is the very first
+                    // install and there's nothing for the user to "update" to.
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        showUpdateToast(newWorker);
                     }
                 });
             });
@@ -3186,8 +3215,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
             });
         }).catch(() => { /* SW unsupported or blocked — continue online-only */ });
 
-        // When the controlling SW changes (new version took over), reload once so
-        // the page runs against the fresh cache.
+        // When the controlling SW changes (after user clicked Update and
+        // SKIP_WAITING took effect), reload so the page runs the fresh code.
         let reloading = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (reloading) return;

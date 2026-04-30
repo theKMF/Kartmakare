@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#5046e5">
-    <link rel="icon" type="image/svg+xml" href="Kartmakare.svg">
+    <link rel="icon" type="image/svg+xml" href="kartmakare-icon.svg">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -264,6 +264,12 @@
     <div class="share-menu-item" data-share="link">Link</div>
     <div class="share-menu-item" data-share="image">Image</div>
     <div class="share-menu-item" data-share="qr">QR</div>
+</div>
+
+<div class="update-toast" id="update-toast" role="status" aria-live="polite">
+    <span class="update-toast-msg">New version available</span>
+    <button class="update-toast-btn" id="update-toast-btn" type="button">Update</button>
+    <button class="update-toast-close" id="update-toast-close" type="button" aria-label="Dismiss">&times;</button>
 </div>
 
 <script src="are-you-sure.js"></script>

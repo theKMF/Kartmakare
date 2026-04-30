@@ -3178,12 +3178,17 @@ function hideUpdateToast() {
 const updateBtn = document.getElementById('update-toast-btn');
 const updateClose = document.getElementById('update-toast-close');
 if (updateBtn) updateBtn.addEventListener('click', () => {
+    // Hide immediately so the user gets feedback that the click registered.
+    hideUpdateToast();
     if (waitingWorker) {
         waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-        // Leave the toast visible until controllerchange fires; the reload
-        // that follows replaces the page entirely.
+        // Defensive: if controllerchange doesn't fire (some browsers/OSes
+        // miss it under certain SW lifecycle conditions), reload anyway
+        // after a short delay so the user isn't stuck staring at the old
+        // version with no obvious next step.
+        setTimeout(() => window.location.reload(), 1500);
     } else {
-        // No worker reference — fall back to a simple reload (unlikely path).
+        // No waiting worker reference — fall back to a simple reload.
         window.location.reload();
     }
 });

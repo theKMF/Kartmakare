@@ -4,7 +4,7 @@
 // Browsers re-fetch sw.js on each page load; if it differs byte-for-byte from the
 // cached version they install the new one, delete old caches, and (via the client
 // postMessage flow in app.js) reload the page so users get the fresh assets.
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v12';
 const CACHE_NAME = `kartmakare-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [

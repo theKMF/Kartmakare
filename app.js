@@ -3197,11 +3197,13 @@ if (updateClose) updateClose.addEventListener('click', hideUpdateToast);
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
-            // A worker may already be waiting (user installed update earlier
-            // but didn't click; page reloaded for another reason). Surface it.
-            if (reg.waiting && navigator.serviceWorker.controller) {
-                showUpdateToast(reg.waiting);
-            }
+            // Only show the toast for GENUINELY new updates detected during this
+            // session via 'updatefound'. We deliberately do NOT surface a pre-
+            // existing reg.waiting on page load: if a SW is already in the
+            // waiting state from a prior session, it will activate by itself
+            // the next time all clients close, so re-nagging the user every
+            // page load is more annoying than helpful (and can produce a stuck
+            // toast if skipWaiting() didn't take effect for any reason).
             reg.addEventListener('updatefound', () => {
                 const newWorker = reg.installing;
                 if (!newWorker) return;

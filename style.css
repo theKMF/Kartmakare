@@ -262,8 +262,8 @@ body {
 .update-toast {
     position: fixed;
     left: 50%;
-    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-    transform: translate(-50%, calc(100% + 3rem));
+    top: calc(3rem + env(safe-area-inset-top, 0px));
+    transform: translate(-50%, calc(-100% - 4rem));
     background: var(--text); color: #fff;
     padding: 0.55rem 0.6rem 0.55rem 1rem;
     display: flex; align-items: center; gap: 0.6rem;
@@ -289,8 +289,6 @@ body {
     padding: 0 0.25rem; font-family: inherit;
 }
 .update-toast-close:hover { color: #fff; }
-/* On mobile bottom-bar visible views, lift toast above the bar */
-body.mobile.map-active .update-toast { bottom: calc(var(--mobile-bar-h, 64px) + 1rem + env(safe-area-inset-bottom, 0px)); }
 
 /* ========== MAP VIEW ========== */
 .map-view { display: none; height: 100vh; min-height: 800px; flex-direction: column; overflow: hidden; min-width: 900px; }

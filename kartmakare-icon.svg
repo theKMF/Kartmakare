@@ -2,8 +2,8 @@
 <g clip-path="url(#clip0_71_43)">
 <rect width="1200" height="1200" fill="#F5F5F5"/>
 <path d="M600 -65L600 637" stroke="black" stroke-width="30"/>
-<path d="M1431 932L600 637" stroke="black" stroke-width="30"/>
-<path d="M245 1268L600 637" stroke="black" stroke-width="30"/>
+<path d="M1367 637H600" stroke="black" stroke-width="50" stroke-dasharray="100 100"/>
+<path d="M816 1480L600 637" stroke="black" stroke-width="30"/>
 <circle cx="600" cy="637" r="193.5" fill="white" stroke="black" stroke-width="45"/>
 </g>
 <defs>

@@ -4,8 +4,10 @@
 // Browsers re-fetch sw.js on each page load; if it differs byte-for-byte from the
 // cached version they install the new one, delete old caches, and (via the client
 // postMessage flow in app.js) reload the page so users get the fresh assets.
-const CACHE_VERSION = 'v13';
+const CACHE_VERSION = 'v14';
 const CACHE_NAME = `kartmakare-${CACHE_VERSION}`;
+const SHARE_CACHE_NAME = 'kartmakare-share-target';
+const SHARE_PAYLOAD_KEY = '/share-target-payload';
 
 const PRECACHE_URLS = [
     './',
@@ -14,8 +16,8 @@ const PRECACHE_URLS = [
     './style.css',
     './are-you-sure.js',
     './qrcode.js',
+    './parser.js',
     './twofour-logo.svg',
-    './Kartmakare.svg',
     './kartmakare-icon.svg',
     './manifest.json',
     './icons/icon-192.png',
@@ -34,17 +36,63 @@ self.addEventListener('activate', (event) => {
     event.waitUntil((async () => {
         const keys = await caches.keys();
         await Promise.all(
-            keys.filter(k => k.startsWith('kartmakare-') && k !== CACHE_NAME)
+            keys.filter(k => k.startsWith('kartmakare-') && k !== CACHE_NAME && k !== SHARE_CACHE_NAME)
                 .map(k => caches.delete(k))
         );
         await self.clients.claim();
     })());
 });
 
+// Share Target: the OS sends shared text/files as a POST to ./share-target
+// (declared in manifest.json). Read the multipart form data, combine the text
+// fields and any text-file contents, stash the result in a Cache, and redirect
+// the browser to the main app with ?shared=1 so app.js can pick it up via
+// dynamic import of parser.js.
+async function handleShareTarget(req) {
+    try {
+        const form = await req.formData();
+        const parts = [];
+        const text = (form.get('text') || '').toString();
+        const title = (form.get('title') || '').toString();
+        const url = (form.get('url') || '').toString();
+        if (text) parts.push(text);
+        const files = form.getAll('files');
+        for (const file of files) {
+            if (file && typeof file.text === 'function') {
+                try { parts.push(await file.text()); } catch { /* skip unreadable */ }
+            }
+        }
+        const combined = parts.filter(Boolean).join('\n\n');
+        const payload = {
+            text: combined,
+            title,
+            url,
+            timestamp: Date.now(),
+        };
+        const cache = await caches.open(SHARE_CACHE_NAME);
+        await cache.put(
+            SHARE_PAYLOAD_KEY,
+            new Response(JSON.stringify(payload), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        );
+    } catch {
+        // If parsing fails, still redirect — app will just see no payload and no-op.
+    }
+    return Response.redirect('./?shared=1', 303);
+}
+
 self.addEventListener('fetch', (event) => {
     const req = event.request;
-    if (req.method !== 'GET') return;
     const url = new URL(req.url);
+
+    // Share Target POST handler (POST is the only method that hits us here that we care about).
+    if (req.method === 'POST' && url.pathname.endsWith('/share-target')) {
+        event.respondWith(handleShareTarget(req));
+        return;
+    }
+
+    if (req.method !== 'GET') return;
     if (url.origin !== self.location.origin) return;
 
     event.respondWith((async () => {

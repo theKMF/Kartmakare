@@ -3147,6 +3147,46 @@ if (checkConsent()) {
     document.getElementById('consent-letsgo').addEventListener('click', grantConsent);
 }
 
+// ===== SHARE TARGET INGESTION =====
+// The SW intercepts POST /share-target (declared in manifest.json), stashes
+// the payload in a Cache, and redirects here with ?shared=1. We pull the
+// payload, run the shared text through parser.js (loaded as a pure ESM
+// module via dynamic import), and unshift each line as a new component.
+async function tryProcessSharedText() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('shared')) return false;
+    if (!('caches' in self)) {
+        history.replaceState({}, '', './');
+        return false;
+    }
+    try {
+        const cache = await caches.open('kartmakare-share-target');
+        const res = await cache.match('/share-target-payload');
+        if (!res) {
+            history.replaceState({}, '', './');
+            return false;
+        }
+        const payload = await res.json();
+        await cache.delete('/share-target-payload');
+        history.replaceState({}, '', './');
+        const text = (payload && payload.text) || '';
+        if (!text.trim()) return false;
+        const { parseTextToList } = await import('./parser.js');
+        const newItems = parseTextToList(text, { dedupe: true });
+        if (newItems.length === 0) return false;
+        // Reverse so the first line of the source ends up at the top of the
+        // list (items.unshift puts each new entry at index 0).
+        for (const t of newItems.slice().reverse()) {
+            items.unshift({ id: generateId(), text: t, stage: '', posX: 0, posY: 0 });
+        }
+        saveItems();
+        return true;
+    } catch (err) {
+        console.warn('Share-target ingestion failed:', err);
+        return false;
+    }
+}
+
 // ===== INIT =====
 async function init() {
     loadItems();
@@ -3156,7 +3196,12 @@ async function init() {
     loadAnchor();
     syncAnchorInput();
     const imported = await tryHashImport();
-    if (!imported) renderList();
+    const shared = !imported ? await tryProcessSharedText() : false;
+    if (!imported) {
+        renderList();
+        // Make sure freshly shared components are visible to the user.
+        if (shared) showView('list');
+    }
 }
 if (checkConsent()) init();
 

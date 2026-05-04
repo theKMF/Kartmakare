@@ -20,7 +20,7 @@
             "text": "text",
             "url": "url",
             "files": [
-                { "name": "files", "accept": ["text/plain", "text/markdown", "text/csv", ".txt", ".md", ".csv", ".tsv", ".log", ".text"] }
+                { "name": "files", "accept": ["text/*", "application/json", ".txt", ".md", ".csv", ".tsv", ".log", ".text", ".json"] }
             ]
         }
     },

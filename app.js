@@ -1747,11 +1747,13 @@ function renderList() {
         if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
     }
 
-    // Disable "Assign Stages" when all items have a stage
+    // Show the Assign Stages FAB only when there is at least one component
+    // still missing a stage. Toggling .show is a transform/opacity transition,
+    // so it pops in with the spring easing defined on .btn-stage-fab.
     const stageBtn = document.getElementById('btn-stage');
     const assigned = items.filter(i => i.stage).length;
     const unassigned = items.length - assigned;
-    stageBtn.disabled = items.length > 0 && unassigned === 0;
+    stageBtn.classList.toggle('show', unassigned > 0);
 
     // Disable "Let's Map" when fewer than 2 components have stages
     document.getElementById('btn-map').disabled = assigned < 2;

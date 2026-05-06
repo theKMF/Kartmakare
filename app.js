@@ -342,10 +342,12 @@ ctxMenu.addEventListener('click', (e) => {
     if (action === 'export-map') {
         const fmt = document.getElementById('export-format-select').value;
         if (fmt === 'png') exportMapPNG();
+        else if (fmt === 'json-readable') saveMapDataReadable();
         else if (fmt === 'json') saveMapData();
         else exportMapSVG();
     }
     if (action === 'save-data') saveMapData();
+    if (action === 'save-data-readable') saveMapDataReadable();
     if (action === 'import-data') showView('import');
     if (action === 'share-qr') openShareQR();
 });
@@ -662,6 +664,31 @@ function saveMapData() {
     downloadFile(JSON.stringify(encodeCompactV2()), 'Kartmakare-data.json', 'application/json');
 }
 
+// Human-readable export — same shape as the legacy v1 import format, with
+// pretty-printing and an exported-at timestamp for context when looking at
+// old files. Importable via the same drop zone as compact-v2.
+function encodeReadableV1() {
+    return {
+        type: KARTMAKARE_FILE_TYPE,
+        version: KARTMAKARE_FILE_VERSION,
+        exported: new Date().toISOString(),
+        anchor,
+        anchorLinks: anchorLinks.slice(),
+        items: items.map(i => ({ ...i })),
+        links: links.map(l => ({ ...l })),
+        areas: areas.map(a => ({
+            id: a.id,
+            itemIds: a.itemIds.slice(),
+            vertexAdjustments: (a.vertexAdjustments || []).map(v => ({ ...v })),
+            midpointOffsets: (a.midpointOffsets || []).map(m => ({ ...m })),
+        })),
+        labels: labels.map(l => ({ ...l })),
+    };
+}
+function saveMapDataReadable() {
+    downloadFile(JSON.stringify(encodeReadableV1(), null, 2), 'Kartmakare-readable.json', 'application/json');
+}
+
 function isKartmakareData(data) {
     return (
         data !== null && typeof data === 'object' &&
@@ -670,28 +697,100 @@ function isKartmakareData(data) {
     );
 }
 
+// Field-level sanitiser. Walks the imported structure, drops malformed
+// entries, and re-grounds cross-references so nothing dangles. Always run
+// after the shape discriminator (normalizeImportData) so we know we have a
+// Kartmakare-flavoured object — this is just defensive cleanup for hand-
+// edited Readable JSON, very-old files, or otherwise quirky inputs.
+const STAGE_VALUES = new Set(['', 'genesis', 'custom', 'product', 'commodity']);
+const LINK_STYLE_VALUES = new Set(['solid', 'dashed', 'evolution']);
+function sanitizeImportData(data) {
+    const rawItems = Array.isArray(data.items) ? data.items : [];
+    const rawLinks = Array.isArray(data.links) ? data.links : [];
+    const rawAreas = Array.isArray(data.areas) ? data.areas : [];
+    const rawLabels = Array.isArray(data.labels) ? data.labels : [];
+    const rawAnchorLinks = Array.isArray(data.anchorLinks) ? data.anchorLinks : [];
+
+    const isFiniteNum = (n) => typeof n === 'number' && Number.isFinite(n);
+    const items = rawItems.filter(i =>
+        i && typeof i === 'object'
+        && typeof i.id === 'string' && i.id
+        && typeof i.text === 'string'
+        && (i.stage == null || STAGE_VALUES.has(i.stage))
+        && isFiniteNum(i.posX) && isFiniteNum(i.posY)
+    ).map(i => ({ ...i, stage: i.stage || '' }));
+
+    const validIds = new Set(items.map(i => i.id));
+    // Clear evolvedFrom pointers that reference non-existent items.
+    items.forEach(i => { if (i.evolvedFrom != null && !validIds.has(i.evolvedFrom)) delete i.evolvedFrom; });
+
+    const links = rawLinks.filter(l =>
+        l && typeof l === 'object'
+        && typeof l.id === 'string' && l.id
+        && validIds.has(l.fromId) && validIds.has(l.toId)
+        && LINK_STYLE_VALUES.has(l.style)
+    );
+
+    const areas = rawAreas.map(a => {
+        if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !a.id) return null;
+        const itemIds = (Array.isArray(a.itemIds) ? a.itemIds : []).filter(id => validIds.has(id));
+        if (itemIds.length === 0) return null;
+        return {
+            id: a.id,
+            itemIds,
+            vertexAdjustments: Array.isArray(a.vertexAdjustments) ? a.vertexAdjustments : [],
+            midpointOffsets: Array.isArray(a.midpointOffsets) ? a.midpointOffsets : [],
+        };
+    }).filter(Boolean);
+
+    const labels = rawLabels.filter(l =>
+        l && typeof l === 'object'
+        && typeof l.id === 'string' && l.id
+        && typeof l.text === 'string'
+        && isFiniteNum(l.posX) && isFiniteNum(l.posY)
+    );
+
+    const anchorLinks = rawAnchorLinks.filter(id => typeof id === 'string' && validIds.has(id));
+
+    const dropped =
+        (rawItems.length - items.length)
+        + (rawLinks.length - links.length)
+        + (rawAreas.length - areas.length)
+        + (rawLabels.length - labels.length)
+        + (rawAnchorLinks.length - anchorLinks.length);
+
+    return {
+        items, links, areas, labels,
+        anchor: typeof data.anchor === 'string' ? data.anchor : '',
+        anchorLinks,
+        dropped,
+    };
+}
+
 function normalizeImportData(raw) {
-    if (Array.isArray(raw) && raw[0] === COMPACT_VERSION) return decodeCompactV2(raw);
-    if (isKartmakareData(raw)) return raw;
-    return null;
+    let data = null;
+    if (Array.isArray(raw) && raw[0] === COMPACT_VERSION) data = decodeCompactV2(raw);
+    else if (isKartmakareData(raw)) data = raw;
+    if (!data) return null;
+    return sanitizeImportData(data);
 }
 
 async function tryImportKartmakareFile(file) {
-    if (!file) return false;
+    if (!file) return null;
     try {
         const text = await file.text();
         const data = normalizeImportData(JSON.parse(text));
-        if (!data) return false;
+        if (!data) return null;
         items = data.items;
         links = data.links;
         areas = data.areas;
-        labels = Array.isArray(data.labels) ? data.labels : [];
-        anchor = typeof data.anchor === 'string' ? data.anchor : '';
-        anchorLinks = Array.isArray(data.anchorLinks) ? data.anchorLinks : [];
+        labels = data.labels;
+        anchor = data.anchor;
+        anchorLinks = data.anchorLinks;
         saveItems(); saveLinks(); saveAreas(); saveLabels(); saveAnchor();
         syncAnchorInput();
-        return true;
-    } catch { return false; }
+        return { dropped: data.dropped || 0 };
+    } catch { return null; }
 }
 
 // ===== IMPORT VIEW / DROP ZONE =====
@@ -726,9 +825,12 @@ async function handleDroppedFile(file) {
     if (!file) return;
     const looksLikeJson = /\.json$/i.test(file.name) || file.type === 'application/json' || file.type === '';
     if (!looksLikeJson) { flashReject('Make sure it\u2019s a Kartmakare JSON file.'); return; }
-    const ok = await tryImportKartmakareFile(file);
-    if (!ok) { flashReject('Make sure it\u2019s a Kartmakare JSON file.'); return; }
-    dropZoneFeedback.textContent = 'Imported. Opening map\u2026';
+    const result = await tryImportKartmakareFile(file);
+    if (!result) { flashReject('Make sure it\u2019s a Kartmakare JSON file.'); return; }
+    const dropped = result.dropped || 0;
+    dropZoneFeedback.textContent = dropped > 0
+        ? `Imported (${dropped} malformed entr${dropped === 1 ? 'y' : 'ies'} skipped). Opening map\u2026`
+        : 'Imported. Opening map\u2026';
     dropZoneFeedback.className = 'drop-zone-feedback success';
     setTimeout(() => showView('map'), 400);
 }
@@ -919,9 +1021,9 @@ async function tryHashImport() {
         items = data.items;
         links = data.links;
         areas = data.areas;
-        labels = Array.isArray(data.labels) ? data.labels : [];
-        anchor = typeof data.anchor === 'string' ? data.anchor : '';
-        anchorLinks = Array.isArray(data.anchorLinks) ? data.anchorLinks : [];
+        labels = data.labels;
+        anchor = data.anchor;
+        anchorLinks = data.anchorLinks;
         saveItems(); saveLinks(); saveAreas(); saveLabels(); saveAnchor();
         syncAnchorInput();
         history.replaceState(null, '', location.pathname + location.search);
@@ -1361,6 +1463,7 @@ function startMidpointDrag(areaId, handle, handleEl, e) {
 document.getElementById('btn-map-export').addEventListener('click', () => {
     const fmt = document.getElementById('export-format-select').value;
     if (fmt === 'png') exportMapPNG();
+    else if (fmt === 'json-readable') saveMapDataReadable();
     else if (fmt === 'json') saveMapData();
     else exportMapSVG();
 });

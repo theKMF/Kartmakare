@@ -129,9 +129,17 @@ body {
     display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem;
     background: var(--surface); border: 1px solid var(--border); margin-bottom: 0.5rem;
     transition: border-color 0.15s; box-shadow: var(--shadow-sm);
+    min-width: 0;
 }
 .list-item:hover { border-color: var(--border-hover); }
-.list-item-text { flex: 1; font-size: 0.9rem; font-weight: 500; }
+/* Truncate long component names with an ellipsis so a single pasted paragraph
+   can't blow up the row height on mobile. Full text stays in the data and is
+   visible in the rename input when you tap to edit. */
+.list-item-text {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 0.9rem; font-weight: 500;
+}
 .list-item { cursor: pointer; }
 .list-item.editing { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm); }
 .list-item-edit-input {

@@ -157,6 +157,8 @@ Where's the peck of pickled peppers Peter Piper picked?`,
         animation: ays-fade-in 0.3s ease-out;
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
+        padding: 16px;
+        box-sizing: border-box;
       }
       @keyframes ays-fade-in {
         from { opacity: 0; }
@@ -167,12 +169,13 @@ Where's the peck of pickled peppers Peter Piper picked?`,
         border: 1px solid #e0e0e0;
         border-radius: 0;
         max-width: 520px;
-        width: 90%;
-        max-height: 90vh;
+        width: 100%;
+        max-height: calc(100vh - 32px);
         overflow-y: auto;
         font-family: 'Space Grotesk', -apple-system, sans-serif;
         color: #1a1a1a;
         animation: ays-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        box-sizing: border-box;
       }
       .ays-dialog::-webkit-scrollbar { width: 4px; }
       .ays-dialog::-webkit-scrollbar-track { background: #fff; }

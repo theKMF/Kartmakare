@@ -1828,6 +1828,7 @@ function addItem() {
 
 function deleteItem(id) {
     if (editingItemId === id) editingItemId = null;
+    pushUndoSnapshot();
     const evolvedIds = items.filter(i => i.evolvedFrom === id).map(i => i.id);
     const removeIds = new Set([id, ...evolvedIds]);
     items = items.filter(i => !removeIds.has(i.id));
@@ -1843,6 +1844,40 @@ function deleteItem(id) {
 
 addBtn.addEventListener('click', addItem);
 itemInput.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
+
+// ===== UNDO (list-view delete) =====
+// Each deleteItem() pushes a full snapshot (the cascade touches links, areas
+// and anchorLinks too, so restoring just the item wouldn't be enough).
+const UNDO_STACK_MAX = 20;
+let undoStack = [];
+
+function pushUndoSnapshot() {
+    undoStack.push(JSON.parse(JSON.stringify({ items, links, areas, anchorLinks })));
+    if (undoStack.length > UNDO_STACK_MAX) undoStack.shift();
+}
+
+function undoDelete() {
+    const snap = undoStack.pop();
+    if (!snap) return;
+    ({ items, links, areas, anchorLinks } = snap);
+    saveItems();
+    saveLinks();
+    saveAreas();
+    saveAnchor();
+    renderList();
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'z' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    if (listView.classList.contains('hidden')) return;
+    if (!undoStack.length) return;
+    // Leave Cmd/Ctrl+Z alone while the user is editing text — unless the
+    // field is empty, in which case native undo has nothing useful to do.
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.value !== '') return;
+    e.preventDefault();
+    undoDelete();
+});
 
 // ===== ANCHOR INPUT =====
 const anchorInput = document.getElementById('anchor-input');

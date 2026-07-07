@@ -158,6 +158,9 @@ body {
 }
 .list-item { cursor: pointer; }
 .list-item.editing { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm); }
+/* Marked for deletion: thick black border (box-shadow so the layout doesn't shift). */
+.list-item.marked-delete { border-color: var(--text); box-shadow: 0 0 0 2px var(--text), var(--shadow-sm); }
+.list-item.marked-delete:hover { border-color: var(--text); }
 .list-item-edit-input {
     flex: 1; background: none; border: none; outline: none; color: var(--text);
     font-size: 0.9rem; font-weight: 500; font-family: inherit; padding: 0;
@@ -166,9 +169,30 @@ body {
 .stage-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0.1rem; font-size: 0.7rem; line-height: 1; display: none; transition: color 0.15s; }
 .stage-remove:hover { color: var(--down); }
 .list-item.editing .stage-remove { display: flex; align-items: center; }
-.item-delete { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0.35rem; transition: color 0.15s; display: flex; align-items: center; }
+.item-delete { position: relative; background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0.35rem; transition: color 0.15s; display: flex; align-items: center; }
 .item-delete:hover { color: var(--down); }
 .item-delete svg { width: 14px; height: 14px; }
+/* Selected-for-deletion: trash goes red, checkmark drawn on top. */
+.item-delete .trash-check { display: none; position: absolute; top: 50%; left: 50%; width: 15px; height: 15px; transform: translate(-50%, -50%); }
+.item-delete.selected { color: var(--down); }
+.item-delete.selected .trash-check { display: block; }
+
+/* Actions bar above the list: sort on the left, delete-selected on the right. */
+.list-actions { max-width: 900px; margin: 0 auto 0.5rem; padding: 0 1.5rem; display: flex; justify-content: space-between; }
+.btn-sort {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    padding: 0.35rem 0.75rem; font-size: 0.7rem; font-weight: 500;
+    font-family: inherit; cursor: pointer; transition: all 0.15s;
+}
+.btn-sort:hover { border-color: var(--border-hover); color: var(--text); background: #fff; }
+.btn-delete-selected {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    padding: 0.35rem 0.75rem; font-size: 0.7rem; font-weight: 500;
+    font-family: inherit; cursor: pointer; transition: all 0.15s;
+}
+.btn-delete-selected:disabled { cursor: default; opacity: 0.5; }
+.btn-delete-selected:not(:disabled) { border-color: var(--down); color: var(--down); background: var(--down-bg); }
+.btn-delete-selected:not(:disabled):hover { background: var(--down); color: #fff; }
 
 /* ========== STAGE VIEW ========== */
 .stage-view { display: none; min-height: 100vh; flex-direction: column; }

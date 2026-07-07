@@ -22,6 +22,9 @@ const STAGES = [
 
 const ICONS = {
     trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    // Overlaid on the trash icon when an item is selected for deletion.
+    // White under-stroke keeps the check legible on top of the trash strokes.
+    trashCheck: `<svg class="trash-check" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" stroke="#fff" stroke-width="6"/><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3"/></svg>`,
 };
 
 function escapeHtml(str) {
@@ -127,6 +130,7 @@ let stageIndex = 0;
 let unstaged = [];
 let areaSelectMode = false;
 let areaSelectedIds = new Set();
+let deleteSelectedIds = new Set();
 let areaElements = [];
 let currentAreaHandles = [];
 let hoveredAreaId = null;
@@ -1725,20 +1729,27 @@ function saveAnchor() { storeWriteMeta({ anchor, anchorLinks }); }
 let editingItemId = null;
 
 function renderList() {
+    // Drop selections pointing at items that no longer exist (deleted via
+    // other paths, or replaced wholesale by an import/undo).
+    deleteSelectedIds = new Set([...deleteSelectedIds].filter(id => items.some(i => i.id === id)));
+    const deleteSelectedBtn = document.getElementById('btn-delete-selected');
+    deleteSelectedBtn.disabled = deleteSelectedIds.size === 0;
+
     if (items.length === 0) {
         itemsList.innerHTML = '<div class="empty-state"><p>No components yet.<br>Add one above.</p></div>';
         return;
     }
     itemsList.innerHTML = items.map(item => {
         const isEditing = editingItemId === item.id;
+        const isMarked = deleteSelectedIds.has(item.id);
         return `
-        <div class="list-item ${isEditing ? 'editing' : ''}" data-id="${escapeHtml(item.id)}">
+        <div class="list-item ${isEditing ? 'editing' : ''} ${isMarked ? 'marked-delete' : ''}" data-id="${escapeHtml(item.id)}">
             ${isEditing
                 ? `<input class="list-item-edit-input" value="${escapeHtml(item.text)}" maxlength="200" autocomplete="off" spellcheck="false">`
                 : `<span class="list-item-text">${escapeHtml(item.text)}</span>`
             }
             ${item.stage ? `<span class="stage-badge-wrap"><span class="stage-badge stage-${item.stage}">${escapeHtml(stageLabel(item.stage))}</span><button class="stage-remove" data-id="${escapeHtml(item.id)}" title="Remove stage">&times;</button></span>` : ''}
-            <button class="item-delete" data-id="${escapeHtml(item.id)}">${ICONS.trash}</button>
+            <button class="item-delete ${isMarked ? 'selected' : ''}" data-id="${escapeHtml(item.id)}" title="${isMarked ? 'Unmark for deletion' : 'Mark for deletion'}">${ICONS.trash}${ICONS.trashCheck}</button>
         </div>`;
     }).join('');
 
@@ -1761,7 +1772,12 @@ function renderList() {
 
 itemsList.addEventListener('click', (e) => {
     const deleteBtn = e.target.closest('.item-delete');
-    if (deleteBtn) { e.stopPropagation(); deleteItem(deleteBtn.dataset.id); return; }
+    if (deleteBtn) {
+        e.stopPropagation();
+        if (e.shiftKey) rangeDeleteSelect(deleteBtn.dataset.id);
+        else toggleDeleteSelected(deleteBtn.dataset.id);
+        return;
+    }
 
     const removeStageBtn = e.target.closest('.stage-remove');
     if (removeStageBtn) { e.stopPropagation(); removeItemStage(removeStageBtn.dataset.id); return; }
@@ -1769,6 +1785,10 @@ itemsList.addEventListener('click', (e) => {
     const row = e.target.closest('.list-item');
     if (!row) return;
     const id = row.dataset.id;
+
+    // Shift-click anywhere on a row extends the deletion selection instead of
+    // opening the inline editor.
+    if (e.shiftKey) { e.preventDefault(); rangeDeleteSelect(id); return; }
 
     if (editingItemId === id) return;
     if (editingItemId) saveEdit();
@@ -1826,15 +1846,48 @@ function addItem() {
     renderList();
 }
 
-function deleteItem(id) {
-    if (editingItemId === id) editingItemId = null;
+function toggleDeleteSelected(id) {
+    if (deleteSelectedIds.has(id)) {
+        deleteSelectedIds.delete(id);
+        if (deleteRangeAnchorId === id) deleteRangeAnchorId = null;
+    } else {
+        deleteSelectedIds.add(id);
+        deleteRangeAnchorId = id;
+    }
+    renderList();
+}
+
+// Shift-click: apply to every item between the last-toggled item and this
+// one. Marks the range if the clicked item is unmarked, unmarks it if the
+// clicked item is already marked (i.e. the range mirrors what a plain click
+// on the target would do). With no anchor, falls back to a plain toggle.
+let deleteRangeAnchorId = null;
+
+function rangeDeleteSelect(id) {
+    const anchorIdx = items.findIndex(i => i.id === deleteRangeAnchorId);
+    const idx = items.findIndex(i => i.id === id);
+    if (anchorIdx === -1 || idx === -1) { toggleDeleteSelected(id); return; }
+    const [lo, hi] = anchorIdx < idx ? [anchorIdx, idx] : [idx, anchorIdx];
+    const marking = !deleteSelectedIds.has(id);
+    for (let k = lo; k <= hi; k++) {
+        if (marking) deleteSelectedIds.add(items[k].id);
+        else deleteSelectedIds.delete(items[k].id);
+    }
+    deleteRangeAnchorId = id;
+    renderList();
+}
+
+function deleteItems(ids) {
+    if (!ids.length) return;
     pushUndoSnapshot();
-    const evolvedIds = items.filter(i => i.evolvedFrom === id).map(i => i.id);
-    const removeIds = new Set([id, ...evolvedIds]);
+    if (ids.includes(editingItemId)) editingItemId = null;
+    const evolvedIds = items.filter(i => ids.includes(i.evolvedFrom)).map(i => i.id);
+    const removeIds = new Set([...ids, ...evolvedIds]);
     items = items.filter(i => !removeIds.has(i.id));
     links = links.filter(l => !removeIds.has(l.fromId) && !removeIds.has(l.toId));
     areas = areas.map(a => ({ ...a, itemIds: a.itemIds.filter(iid => !removeIds.has(iid)) })).filter(a => a.itemIds.length > 0);
     anchorLinks = anchorLinks.filter(aid => !removeIds.has(aid));
+    deleteSelectedIds.clear();
     saveItems();
     saveLinks();
     saveAreas();
@@ -1842,12 +1895,33 @@ function deleteItem(id) {
     renderList();
 }
 
+document.getElementById('btn-delete-selected').addEventListener('click', () => {
+    deleteItems([...deleteSelectedIds]);
+});
+
+// ===== SORT (list view) =====
+// Toggles between ascending and descending alphabetical order. Uses Swedish
+// collation so Å/Ä/Ö sort as their own letters after Z, not as A/O variants.
+// Reorders the persisted items array, so the order carries over to the
+// stage-sorting queue too.
+let sortAsc = true;
+
+document.getElementById('btn-sort').addEventListener('click', () => {
+    if (editingItemId) saveEdit();
+    const dir = sortAsc ? 1 : -1;
+    items.sort((a, b) => dir * a.text.localeCompare(b.text, 'sv', { sensitivity: 'base' }));
+    sortAsc = !sortAsc;
+    saveItems();
+    renderList();
+});
+
 addBtn.addEventListener('click', addItem);
 itemInput.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
 
 // ===== UNDO (list-view delete) =====
-// Each deleteItem() pushes a full snapshot (the cascade touches links, areas
-// and anchorLinks too, so restoring just the item wouldn't be enough).
+// Each deleteItems() call pushes a full snapshot (the cascade touches links,
+// areas and anchorLinks too, so restoring just the items wouldn't be enough).
+// A batch delete is one snapshot, so one Cmd/Ctrl+Z restores the whole batch.
 const UNDO_STACK_MAX = 20;
 let undoStack = [];
 

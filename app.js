@@ -202,12 +202,86 @@ document.getElementById('btn-reset-map').addEventListener('click', async () => {
     document.getElementById('anchor-input').value = '';
     renderList();
 });
-document.getElementById('btn-map-assign').addEventListener('click', () => {
+// ===== UNASSIGNED-COMPONENTS FAB (map view) =====
+// Floating pill at the top of the map when components lack a stage. Click →
+// stage view. Dismiss via the × or a touch swipe. Dismissal is in-memory and
+// ratchets: it holds while the unassigned count stays at or below the count
+// it was dismissed at, and the pill returns when new unstaged components
+// appear (count rises above the ratchet).
+const mapAssignFab = document.getElementById('map-assign-fab');
+const mapAssignFabText = document.getElementById('map-assign-fab-text');
+let mapAssignDismissedCount = 0;
+let mapAssignSwipeMoved = false;
+
+function goToAssignStages() {
     unstaged = items.filter(i => !i.stage);
     stageIndex = 0;
     showView('stage');
     renderStageTargets();
     showStageCard();
+}
+
+function updateMapAssignFab() {
+    const count = items.filter(i => !i.stage).length;
+    if (count < mapAssignDismissedCount) mapAssignDismissedCount = count; // ratchet down
+    const show = count > mapAssignDismissedCount;
+    if (show) {
+        mapAssignFabText.textContent = `${count} unassigned component${count === 1 ? '' : 's'} — Assign Stages`;
+        mapAssignFab.classList.remove('dismissing', 'dragging');
+        mapAssignFab.style.setProperty('--swipe-x', '0px');
+        mapAssignFab.style.opacity = '';
+    }
+    mapAssignFab.classList.toggle('show', show);
+}
+
+function dismissMapAssignFab() {
+    mapAssignDismissedCount = items.filter(i => !i.stage).length;
+    mapAssignFab.classList.remove('show');
+}
+
+mapAssignFab.addEventListener('click', (e) => {
+    if (mapAssignSwipeMoved) return; // it was a swipe, not a click
+    if (e.target.closest('.map-assign-fab-close')) return;
+    goToAssignStages();
+});
+mapAssignFab.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToAssignStages(); }
+});
+document.getElementById('map-assign-fab-close').addEventListener('click', (e) => {
+    e.stopPropagation();
+    dismissMapAssignFab();
+});
+
+// Touch swipe-to-dismiss: the pill follows the finger horizontally and fades;
+// past the threshold it slides out and dismisses, otherwise it springs back.
+const FAB_SWIPE_DISMISS_PX = 70;
+let fabTouchStartX = 0;
+mapAssignFab.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    fabTouchStartX = e.touches[0].clientX;
+    mapAssignSwipeMoved = false;
+    mapAssignFab.classList.add('dragging');
+}, { passive: true });
+mapAssignFab.addEventListener('touchmove', (e) => {
+    const dx = e.touches[0].clientX - fabTouchStartX;
+    if (Math.abs(dx) > 10) mapAssignSwipeMoved = true;
+    mapAssignFab.style.setProperty('--swipe-x', dx + 'px');
+    mapAssignFab.style.opacity = String(Math.max(0.25, 1 - Math.abs(dx) / 220));
+}, { passive: true });
+mapAssignFab.addEventListener('touchend', (e) => {
+    mapAssignFab.classList.remove('dragging');
+    const dx = (e.changedTouches[0] ? e.changedTouches[0].clientX : fabTouchStartX) - fabTouchStartX;
+    if (Math.abs(dx) >= FAB_SWIPE_DISMISS_PX) {
+        mapAssignFab.classList.add('dismissing');
+        mapAssignFab.style.setProperty('--swipe-x', (dx > 0 ? 1 : -1) * (mapAssignFab.offsetWidth + 80) + 'px');
+        mapAssignFab.style.opacity = '0';
+        setTimeout(() => dismissMapAssignFab(), 220);
+    } else {
+        mapAssignFab.style.setProperty('--swipe-x', '0px');
+        mapAssignFab.style.opacity = '';
+    }
+    // let the synthetic click that follows touchend see the flag, then clear it
+    setTimeout(() => { mapAssignSwipeMoved = false; }, 0);
 });
 
 // ===== MAP ADD-ITEM MODAL =====
@@ -664,6 +738,187 @@ function decodeCompactV2(arr) {
     };
 }
 
+// >>> KM3 CODEC BEGIN (pure functions — no DOM. The QR-share binary format.
+// Tested by the qr harness, which slices this block out of app.js verbatim;
+// keep it self-contained apart from generateId + the shared scale constants.)
+//
+// Share format v3: varint-packed binary, ~40-50% smaller than the compact-v2
+// JSON before compression, ~19% smaller URLs after deflate. Layout:
+//   u8 version=3
+//   items:  count, text lens + utf8 blob, posX[], posY[], stage exceptions
+//   evo:    sparse (itemIdx, sourceIdx) pairs — v2 dropped evolvedFrom, v3 keeps it
+//   links:  count, (from,to) varint pairs, styles 2-bit-packed
+//   areas:  per area: itemIdx[], vertex adjustments, midpoint offsets (zigzag)
+//   labels: count, text lens + utf8 blob, per label posX/posY/width
+//   anchor: utf8 string + linked item idx[]
+// Positions are value*1000; multiples of 25 (the 1/40 drag grid) get a 1-byte
+// encoding: (v/25)<<1|1, everything else v<<1. Stages are derived from posX
+// (same maths as stageFromX); only mismatches are stored as exceptions.
+function km3Writer() {
+    let buf = new Uint8Array(1024), len = 0;
+    const ensure = (n) => { if (len + n > buf.length) { const b = new Uint8Array(Math.max(buf.length * 2, len + n)); b.set(buf); buf = b; } };
+    return {
+        u8(v) { ensure(1); buf[len++] = v & 0xff; },
+        varint(v) { v = Math.max(0, Math.round(v)); ensure(5); while (v >= 0x80) { buf[len++] = (v & 0x7f) | 0x80; v >>>= 7; } buf[len++] = v; },
+        zig(v) { v = Math.round(v); this.varint(v < 0 ? (-v * 2 - 1) : v * 2); },
+        bytes(b) { ensure(b.length); buf.set(b, len); len += b.length; },
+        out() { return buf.slice(0, len); },
+    };
+}
+function km3Reader(bytes) {
+    let p = 0;
+    return {
+        u8() { return bytes[p++]; },
+        varint() { let v = 0, s = 0, b; do { b = bytes[p++]; v |= (b & 0x7f) << s; s += 7; } while (b & 0x80); return v >>> 0; },
+        zig() { const v = this.varint(); return (v & 1) ? -((v + 1) / 2) : v / 2; },
+        // count(): a varint used as a loop bound — cap it at the input length
+        // so a corrupt/malicious payload can't demand a billion iterations.
+        count() { const v = this.varint(); if (v > bytes.length) throw new Error('corrupt payload'); return v; },
+        bytes(n) { const b = bytes.slice(p, p + n); p += n; return b; },
+    };
+}
+
+function encodeShareV3(st) {
+    const enc = new TextEncoder();
+    const w = km3Writer();
+    const idMap = new Map(); st.items.forEach((it, i) => idMap.set(it.id, i));
+    const mapId = id => idMap.has(id) ? idMap.get(id) : -1;
+    const qp = v => Math.max(0, Math.min(POS_SCALE, Math.round((+v || 0) * POS_SCALE)));
+    const wpos = v => { const q = qp(v); if (q % 25 === 0) w.varint((q / 25) << 1 | 1); else w.varint(q << 1); };
+    const writeStrings = arr => {
+        const encoded = arr.map(s => enc.encode(s || ''));
+        encoded.forEach(b => w.varint(b.length));
+        encoded.forEach(b => w.bytes(b));
+    };
+
+    w.u8(3);
+    // items: texts, positions, then stage exceptions
+    w.varint(st.items.length);
+    writeStrings(st.items.map(i => i.text));
+    st.items.forEach(i => wpos(i.posX));
+    st.items.forEach(i => wpos(i.posY));
+    const derivedStage = it => STAGE_KEYS_ORDER[Math.min(3, Math.floor(qp(it.posX) / 250))];
+    const exceptions = [];
+    st.items.forEach((it, i) => { if ((it.stage || '') !== derivedStage(it)) exceptions.push([i, STAGE_KEYS_ORDER.indexOf(it.stage) + 1]); });
+    w.varint(exceptions.length);
+    exceptions.forEach(([i, s]) => { w.varint(i); w.u8(s); });
+    // evolvedFrom (sparse)
+    const evo = [];
+    st.items.forEach((it, i) => { const s = mapId(it.evolvedFrom); if (it.evolvedFrom != null && s >= 0) evo.push([i, s]); });
+    w.varint(evo.length);
+    evo.forEach(([i, s]) => { w.varint(i); w.varint(s); });
+    // links: index pairs, then styles packed 4-per-byte
+    const ls = st.links.map(l => [mapId(l.fromId), mapId(l.toId), Math.max(0, STYLE_KEYS_ORDER.indexOf(l.style || 'solid'))]).filter(l => l[0] >= 0 && l[1] >= 0);
+    w.varint(ls.length);
+    ls.forEach(l => { w.varint(l[0]); w.varint(l[1]); });
+    for (let i = 0; i < ls.length; i += 4) {
+        let b = 0;
+        for (let j = 0; j < 4 && i + j < ls.length; j++) b |= ls[i + j][2] << (j * 2);
+        w.u8(b);
+    }
+    // areas
+    w.varint(st.areas.length);
+    st.areas.forEach(a => {
+        const ids = (a.itemIds || []).map(mapId).filter(i => i >= 0);
+        w.varint(ids.length); ids.forEach(i => w.varint(i));
+        const adjs = (a.vertexAdjustments || []).map(v => ({ i: mapId(v.itemId), v })).filter(x => x.i >= 0);
+        w.varint(adjs.length);
+        adjs.forEach(({ i, v }) => {
+            w.varint(i);
+            w.zig((v.radiusOffset || 0) * OFFSET_SCALE); w.zig((v.handleLenA || 0) * OFFSET_SCALE);
+            w.zig((v.handleLenB || 0) * OFFSET_SCALE); w.zig((v.handleAngleA || 0) * ANGLE_SCALE);
+            w.zig((v.handleAngleB || 0) * ANGLE_SCALE);
+        });
+        const mps = (a.midpointOffsets || []).map(m => ({ f: mapId(m.fromId), t: mapId(m.toId), m })).filter(x => x.f >= 0 && x.t >= 0);
+        w.varint(mps.length);
+        mps.forEach(({ f, t, m }) => { w.varint(f); w.varint(t); w.zig((m.dx || 0) * MP_SCALE); w.zig((m.dy || 0) * MP_SCALE); });
+    });
+    // labels: width 0 is the "default 100" sentinel
+    w.varint(st.labels.length);
+    writeStrings(st.labels.map(l => l.text));
+    st.labels.forEach(l => { wpos(l.posX); wpos(l.posY); w.varint(l.width != null && Math.round(l.width) !== 100 ? l.width : 0); });
+    // anchor
+    const ab = enc.encode(st.anchor || '');
+    w.varint(ab.length); w.bytes(ab);
+    const al = (st.anchorLinks || []).map(mapId).filter(i => i >= 0);
+    w.varint(al.length); al.forEach(i => w.varint(i));
+    return w.out();
+}
+
+function decodeShareV3(bytes) {
+    const dec = new TextDecoder();
+    const r = km3Reader(bytes);
+    if (r.u8() !== 3) return null;
+    const readStrings = n => {
+        const lens = []; for (let i = 0; i < n; i++) lens.push(r.count());
+        return lens.map(L => dec.decode(r.bytes(L)));
+    };
+    const rpos = () => { const v = r.varint(); return (v & 1) ? ((v >> 1) * 25) / POS_SCALE : (v >> 1) / POS_SCALE; };
+
+    const n = r.count();
+    const texts = readStrings(n);
+    const xs = []; for (let i = 0; i < n; i++) xs.push(rpos());
+    const ys = []; for (let i = 0; i < n; i++) ys.push(rpos());
+    const ids = texts.map(() => generateId());
+    const idAt = i => (Number.isInteger(i) && i >= 0 && i < ids.length) ? ids[i] : null;
+    const items = texts.map((t, i) => ({
+        id: ids[i], text: t,
+        stage: STAGE_KEYS_ORDER[Math.min(3, Math.floor(Math.round(xs[i] * POS_SCALE) / 250))],
+        posX: xs[i], posY: ys[i],
+    }));
+    const nExc = r.count();
+    for (let k = 0; k < nExc; k++) {
+        const i = r.varint(), s = r.u8();
+        if (items[i]) items[i].stage = (s >= 1 && s <= 4) ? STAGE_KEYS_ORDER[s - 1] : '';
+    }
+    const nEvo = r.count();
+    for (let k = 0; k < nEvo; k++) {
+        const i = r.varint(), s = r.varint();
+        if (items[i] && idAt(s)) items[i].evolvedFrom = idAt(s);
+    }
+    const nL = r.count();
+    const pairs = []; for (let i = 0; i < nL; i++) pairs.push([r.varint(), r.varint()]);
+    const styles = [];
+    for (let i = 0; i < nL; i += 4) { const b = r.u8(); for (let j = 0; j < 4 && i + j < nL; j++) styles.push((b >> (j * 2)) & 3); }
+    const links = pairs.map(([f, t], i) => {
+        const fromId = idAt(f), toId = idAt(t);
+        if (!fromId || !toId) return null;
+        return { id: generateId(), fromId, toId, style: STYLE_KEYS_ORDER[styles[i]] || 'solid' };
+    }).filter(Boolean);
+    const nA = r.count();
+    const areas = [];
+    for (let k = 0; k < nA; k++) {
+        const nIds = r.count(); const itemIds = [];
+        for (let i = 0; i < nIds; i++) { const id = idAt(r.varint()); if (id) itemIds.push(id); }
+        const nAdj = r.count(); const vertexAdjustments = [];
+        for (let i = 0; i < nAdj; i++) {
+            const itemId = idAt(r.varint());
+            const v = { radiusOffset: r.zig() / OFFSET_SCALE, handleLenA: r.zig() / OFFSET_SCALE, handleLenB: r.zig() / OFFSET_SCALE, handleAngleA: r.zig() / ANGLE_SCALE, handleAngleB: r.zig() / ANGLE_SCALE };
+            if (itemId) vertexAdjustments.push(Object.assign({ itemId }, v));
+        }
+        const nMp = r.count(); const midpointOffsets = [];
+        for (let i = 0; i < nMp; i++) {
+            const fromId = idAt(r.varint()), toId = idAt(r.varint());
+            const dx = r.zig() / MP_SCALE, dy = r.zig() / MP_SCALE;
+            if (fromId && toId) midpointOffsets.push({ fromId, toId, dx, dy });
+        }
+        if (itemIds.length) areas.push({ id: generateId(), itemIds, vertexAdjustments, midpointOffsets });
+    }
+    const nLb = r.count();
+    const ltexts = readStrings(nLb);
+    const labels = [];
+    for (let i = 0; i < nLb; i++) {
+        const posX = rpos(), posY = rpos(), wRaw = r.varint();
+        labels.push({ id: generateId(), text: ltexts[i], posX, posY, width: wRaw === 0 ? 100 : wRaw });
+    }
+    const aLen = r.count();
+    const anchor = dec.decode(r.bytes(aLen));
+    const nAl = r.count(); const anchorLinks = [];
+    for (let i = 0; i < nAl; i++) { const id = idAt(r.varint()); if (id) anchorLinks.push(id); }
+    return { items, links, areas, labels, anchor, anchorLinks };
+}
+// <<< KM3 CODEC END
+
 function saveMapData() {
     downloadFile(JSON.stringify(encodeCompactV2()), 'Kartmakare-data.json', 'application/json');
 }
@@ -882,23 +1137,34 @@ function b64urlToBytes(s) {
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
 }
-async function gzipString(str) {
-    const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-}
 async function gunzipToString(bytes) {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
     return await new Response(stream).text();
 }
+// Share links use raw deflate (no gzip header/trailer, 18 bytes cheaper).
+// Legacy links are gzip — told apart by the gzip magic bytes 1f 8b, which can
+// never start a valid raw-deflate stream (BTYPE 11 is reserved).
+async function deflateRawBytes(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function inflateRawBytes(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
 
-async function buildShareUrl() {
-    const json = JSON.stringify(encodeCompactV2());
-    const gz = await gzipString(json);
-    const payload = bytesToB64url(gz);
+async function buildSharePayload() {
+    const bin = encodeShareV3({ items, links, areas, labels, anchor, anchorLinks });
+    const compressed = await deflateRawBytes(bin);
+    const payload = bytesToB64url(compressed);
     const base = location.origin === 'null' || location.protocol === 'file:'
         ? location.href.split('#')[0]
         : location.origin + location.pathname;
-    return base + '#k=' + payload;
+    return { url: base + '#k=' + payload, rawLen: bin.length, compLen: compressed.length };
+}
+
+async function buildShareUrl() {
+    return (await buildSharePayload()).url;
 }
 
 const shareQrModal = document.getElementById('share-qr-modal');
@@ -910,13 +1176,7 @@ async function openShareQR() {
     shareQrBody.innerHTML = '<div class="share-qr-stats">Generating\u2026</div>';
     shareQrModal.classList.add('open');
     try {
-        const json = JSON.stringify(encodeCompactV2());
-        const gz = await gzipString(json);
-        const payload = bytesToB64url(gz);
-        const base = location.origin === 'null' || location.protocol === 'file:'
-            ? location.href.split('#')[0]
-            : location.origin + location.pathname;
-        const url = base + '#k=' + payload;
+        const { url, rawLen, compLen } = await buildSharePayload();
 
         const qr = KmQR.encode(url);
         if (!qr) {
@@ -926,7 +1186,7 @@ async function openShareQR() {
         }
         const svg = KmQR.renderSVG(qr.modules, { scale: 6, margin: 4 });
         shareQrBody.innerHTML = svg +
-            '<div class="share-qr-stats">' + json.length + ' B raw \u2192 ' + gz.length + ' B gzipped \u2192 QR v' + qr.version + '</div>' +
+            '<div class="share-qr-stats">' + rawLen + ' B packed \u2192 ' + compLen + ' B deflated \u2192 QR v' + qr.version + '</div>' +
             '<div class="share-qr-url">' + escapeHtml(url) + '</div>';
     } catch (err) {
         shareQrBody.innerHTML = '<div class="share-qr-error">Could not build QR: ' + escapeHtml(err.message || String(err)) + '</div>';
@@ -1019,8 +1279,16 @@ async function tryHashImport() {
     if (!match) return false;
     try {
         const bytes = b64urlToBytes(match[1]);
-        const json = await gunzipToString(bytes);
-        const data = normalizeImportData(JSON.parse(json));
+        let data;
+        if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+            // Legacy link: gzip → compact-v2 JSON
+            const json = await gunzipToString(bytes);
+            data = normalizeImportData(JSON.parse(json));
+        } else {
+            // Current link: raw deflate → binary v3, then the same sanitiser
+            const decoded = decodeShareV3(await inflateRawBytes(bytes));
+            data = decoded ? normalizeImportData(Object.assign({ type: KARTMAKARE_FILE_TYPE }, decoded)) : null;
+        }
         if (!data) throw new Error('Not a Kartmakare payload');
         items = data.items;
         links = data.links;
@@ -2598,14 +2866,7 @@ new ResizeObserver(() => {
 
 // --- Map bubble rendering ---
 function renderMap() {
-    const unassignedCount = items.filter(i => !i.stage).length;
-    const assignBtn = document.getElementById('btn-map-assign');
-    if (unassignedCount > 0) {
-        assignBtn.style.display = '';
-        assignBtn.textContent = `${unassignedCount} unassigned component${unassignedCount === 1 ? '' : 's'} \u2014 Assign Stages`;
-    } else {
-        assignBtn.style.display = 'none';
-    }
+    updateMapAssignFab();
 
     mapCanvas.querySelectorAll('.map-bubble, .map-gridlines, .map-anchor, .evolve-ghost, .map-label').forEach(el => el.remove());
 

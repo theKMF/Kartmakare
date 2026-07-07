@@ -4,7 +4,7 @@
 // Browsers re-fetch sw.js on each page load; if it differs byte-for-byte from the
 // cached version they install the new one, delete old caches, and (via the client
 // postMessage flow in app.js) reload the page so users get the fresh assets.
-const CACHE_VERSION = 'v22';
+const CACHE_VERSION = 'v23';
 const CACHE_NAME = `kartmakare-${CACHE_VERSION}`;
 const SHARE_CACHE_NAME = 'kartmakare-share-target';
 const SHARE_PAYLOAD_KEY = '/share-target-payload';
@@ -17,7 +17,6 @@ const PRECACHE_URLS = [
     './are-you-sure.js',
     './qrcode.js',
     './parser.js',
-    './twofour-logo.svg',
     './kartmakare-icon.svg',
     './manifest.json',
     './icons/icon-192.png',

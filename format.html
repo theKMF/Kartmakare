@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kartmakare — Map Format Specification</title>
+<link rel="icon" type="image/svg+xml" href="kartmakare-icon.svg">
+<style>
+    :root {
+        --bg: #f8f8fa; --surface: #ffffff; --text: #1a1a2e; --text-muted: #55556d;
+        --text-dim: #a0a0b4; --accent: #5046e5; --accent-light: #ededfc;
+        --border: #e4e4ec; --border-hover: #c9c9d6; --down: #dc2626;
+        --green: #15803d;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--bg); color: var(--text);
+        font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 15px; line-height: 1.65;
+    }
+    .page-header {
+        background: var(--surface); border-bottom: 1px solid var(--border);
+        padding: 0.85rem 1.5rem; display: flex; align-items: baseline; gap: 0.85rem;
+        position: sticky; top: 0; z-index: 10;
+    }
+    .page-header a.home {
+        font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
+        color: var(--text); text-decoration: none; transition: color 0.15s;
+    }
+    .page-header a.home:hover { color: var(--accent); }
+    .page-header .sub { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+    main { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem 6rem; }
+    h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.4rem; }
+    .meta { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+    .meta strong { color: var(--text); }
+    h2 {
+        font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
+        margin: 2.8rem 0 0.9rem; padding-top: 1.4rem; border-top: 1px solid var(--border);
+    }
+    h3 { font-size: 1rem; font-weight: 700; margin: 1.8rem 0 0.6rem; }
+    p { margin-bottom: 0.85rem; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0 0 0.85rem 1.4rem; }
+    li { margin-bottom: 0.3rem; }
+    code {
+        font-family: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+        font-size: 0.84em; background: var(--accent-light); color: var(--text);
+        padding: 0.1em 0.35em;
+    }
+    pre {
+        background: var(--text); color: #e8e8f2; padding: 1rem 1.25rem;
+        overflow-x: auto; margin: 0 0 1rem; font-size: 0.8rem; line-height: 1.55;
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    table { border-collapse: collapse; width: 100%; margin: 0 0 1.2rem; font-size: 0.85rem; }
+    th, td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; vertical-align: top; }
+    th { background: var(--surface); font-weight: 700; white-space: nowrap; }
+    td { background: var(--surface); }
+    td code { white-space: nowrap; }
+    .table-scroll { overflow-x: auto; margin-bottom: 1.2rem; }
+    .table-scroll table { margin-bottom: 0; min-width: 560px; }
+    .callout {
+        background: var(--accent-light); border-left: 3px solid var(--accent);
+        padding: 0.8rem 1.1rem; margin: 0 0 1.2rem; font-size: 0.88rem;
+    }
+    .checklist { list-style: none; margin-left: 0.2rem; }
+    .checklist li { padding-left: 1.6rem; position: relative; }
+    .checklist li::before {
+        content: '✓'; position: absolute; left: 0; top: 0;
+        color: var(--green); font-weight: 800;
+    }
+    .toc {
+        background: var(--surface); border: 1px solid var(--border);
+        padding: 1.1rem 1.4rem; margin-bottom: 2.2rem; font-size: 0.88rem;
+    }
+    .toc-title { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .toc ol { margin: 0 0 0 1.3rem; }
+    .toc a { text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .license {
+        background: var(--surface); border: 1px solid var(--border);
+        padding: 1.3rem 1.5rem; margin-top: 1rem; font-size: 0.88rem;
+    }
+    footer {
+        border-top: 1px solid var(--border); margin-top: 3.5rem; padding-top: 1.2rem;
+        color: var(--text-dim); font-size: 0.78rem;
+    }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+    <a class="home" href="./">Kartmakare</a>
+    <span class="sub">Map format specification</span>
+</div>
+
+<main>
+<h1>Kartmakare map formats</h1>
+<p class="meta">
+    <strong>Readable JSON</strong> format version 1 &middot; <strong>Share-link binary</strong> format version 3 &middot; Status: stable<br>
+    File exports use the <code>.json</code> extension (<code>Kartmakare-readable.json</code>).
+</p>
+
+<p>This document specifies the formats used by
+<a href="https://thekmf.github.io/Kartmakare/">Kartmakare</a> to export, import and
+share Wardley maps. <strong>Readable JSON</strong> (sections 1&ndash;6) is the
+recommended interchange format for third-party tools: anything that writes a file
+matching this spec can be dropped straight into Kartmakare, and anything Kartmakare
+exports as &ldquo;Readable JSON&rdquo; follows it. Section 7 specifies the
+<strong>share-link binary format</strong>, for tools that want to emit a link (or QR
+code) that opens directly in Kartmakare.</p>
+
+<div class="callout">Kartmakare also has a <em>Compact JSON</em> file format (a
+positional array, not covered here) — for file interchange use Readable JSON.</div>
+
+<div class="toc">
+    <div class="toc-title">Contents</div>
+    <ol>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#coordinates">Coordinate system</a></li>
+        <li><a href="#entities">Entities</a></li>
+        <li><a href="#import">Import behaviour</a></li>
+        <li><a href="#example">Minimal valid example</a></li>
+        <li><a href="#checklist">Writer's checklist</a></li>
+        <li><a href="#sharelink">Share-link binary format (QR / #k= URLs)</a></li>
+        <li><a href="#licensing">Licensing</a></li>
+    </ol>
+</div>
+
+<h2 id="overview">1. Overview</h2>
+<p>A map file is a single JSON object:</p>
+<pre><code>{
+  "type": "kartmakare",
+  "version": 1,
+  "exported": "2026-07-07T12:00:00.000Z",
+  "anchor": "Customer needs hot tea",
+  "anchorLinks": ["id-kettle"],
+  "items": [ ... ],
+  "links": [ ... ],
+  "areas": [ ... ],
+  "labels": [ ... ]
+}</code></pre>
+
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+<tr><td><code>type</code></td><td>string</td><td><strong>yes</strong></td><td>Must be exactly <code>"kartmakare"</code>. This is the file discriminator — without it the import is rejected.</td></tr>
+<tr><td><code>version</code></td><td>number</td><td>recommended</td><td>Format version. Currently <code>1</code>.</td></tr>
+<tr><td><code>exported</code></td><td>string</td><td>no</td><td>ISO 8601 timestamp. Informational only; ignored on import.</td></tr>
+<tr><td><code>anchor</code></td><td>string</td><td>no</td><td>The user need at the top of the map. Empty string if unset.</td></tr>
+<tr><td><code>anchorLinks</code></td><td>string[]</td><td>no</td><td>IDs of items linked directly to the anchor.</td></tr>
+<tr><td><code>items</code></td><td>Item[]</td><td><strong>yes</strong></td><td>The map's components. May be empty.</td></tr>
+<tr><td><code>links</code></td><td>Link[]</td><td><strong>yes</strong></td><td>Dependencies between components. May be empty.</td></tr>
+<tr><td><code>areas</code></td><td>Area[]</td><td><strong>yes</strong></td><td>Freeform grouping blobs. May be empty.</td></tr>
+<tr><td><code>labels</code></td><td>Label[]</td><td>no</td><td>Freestanding text labels.</td></tr>
+</table></div>
+
+<p><code>items</code>, <code>links</code> and <code>areas</code> must be present (as
+arrays, even if empty) for the file to be recognised as Kartmakare data.</p>
+
+<h2 id="coordinates">2. Coordinate system</h2>
+<p>All positions are <strong>fractions from 0 to 1</strong> on both axes.</p>
+<ul>
+    <li><strong>X axis — evolution.</strong> <code>0</code> = far left (Genesis), <code>1</code> = far right (Commodity).</li>
+    <li><strong>Y axis — visibility.</strong> <code>1</code> = <strong>top</strong> of the map (visible, close to the user), <code>0</code> = <strong>bottom</strong> (invisible, deep infrastructure). Note that this is the <em>opposite</em> of screen coordinates; Kartmakare renders an item at CSS <code>top: (1 - posY) * 100%</code>.</li>
+</ul>
+
+<h3>Evolution stages</h3>
+<p>The X axis is divided into four equal columns:</p>
+<div class="table-scroll"><table>
+<tr><th>Stage value</th><th>Column (posX range)</th><th>Column centre</th><th>UI label</th></tr>
+<tr><td><code>"genesis"</code></td><td>0.00 – 0.25</td><td>0.125</td><td>Genesis</td></tr>
+<tr><td><code>"custom"</code></td><td>0.25 – 0.50</td><td>0.375</td><td>Custom Built</td></tr>
+<tr><td><code>"product"</code></td><td>0.50 – 0.75</td><td>0.625</td><td>Product</td></tr>
+<tr><td><code>"commodity"</code></td><td>0.75 – 1.00</td><td>0.875</td><td>Commodity</td></tr>
+<tr><td><code>""</code> (empty)</td><td>—</td><td>—</td><td>unstaged</td></tr>
+</table></div>
+
+<p><code>stage</code> and <code>posX</code> are stored independently, but Kartmakare
+keeps them consistent whenever the user drags an item (stage is re-derived from the X
+position). <strong>Writers should do the same:</strong> set <code>stage</code> to the
+column that <code>posX</code> falls in, or place the item at the column centre for its
+stage. An unstaged item (<code>stage: ""</code>) conventionally sits at
+<code>posX: 0, posY: 0</code> and shows up in Kartmakare's list/staging flow rather
+than on the map.</p>
+
+<h2 id="entities">3. Entities</h2>
+
+<h3>3.1 Item (component)</h3>
+<pre><code>{
+  "id": "3f2b8c4e-...",
+  "text": "Kettle",
+  "stage": "product",
+  "posX": 0.625,
+  "posY": 0.62,
+  "evolvedFrom": "id-of-source-item"
+}</code></pre>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th></tr>
+<tr><td><code>id</code></td><td>string</td><td><strong>yes</strong></td><td>Non-empty, unique within the file. Kartmakare uses UUIDs but any unique string works.</td></tr>
+<tr><td><code>text</code></td><td>string</td><td><strong>yes</strong></td><td>Display name. Kartmakare's UI caps input at 200 chars.</td></tr>
+<tr><td><code>stage</code></td><td>string</td><td>no</td><td>One of <code>""</code>, <code>"genesis"</code>, <code>"custom"</code>, <code>"product"</code>, <code>"commodity"</code>. <code>null</code>/missing is treated as <code>""</code>. Any other value drops the item.</td></tr>
+<tr><td><code>posX</code></td><td>number</td><td><strong>yes</strong></td><td>Finite number, 0–1.</td></tr>
+<tr><td><code>posY</code></td><td>number</td><td><strong>yes</strong></td><td>Finite number, 0–1.</td></tr>
+<tr><td><code>evolvedFrom</code></td><td>string</td><td>no</td><td>ID of the item this one evolved out of. Renders the item with a dashed outline and implies an evolution relationship. Cleared on import if the referenced ID doesn't exist.</td></tr>
+</table></div>
+
+<h3>3.2 Link (dependency)</h3>
+<pre><code>{
+  "id": "a1b2c3-...",
+  "fromId": "id-cup-of-tea",
+  "toId": "id-kettle",
+  "style": "solid"
+}</code></pre>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th></tr>
+<tr><td><code>id</code></td><td>string</td><td><strong>yes</strong></td><td>Non-empty, unique.</td></tr>
+<tr><td><code>fromId</code></td><td>string</td><td><strong>yes</strong></td><td>Must reference an existing item ID, otherwise the link is dropped.</td></tr>
+<tr><td><code>toId</code></td><td>string</td><td><strong>yes</strong></td><td>Same.</td></tr>
+<tr><td><code>style</code></td><td>string</td><td><strong>yes</strong></td><td>One of <code>"solid"</code>, <code>"dashed"</code>, <code>"evolution"</code>. Anything else drops the link.</td></tr>
+</table></div>
+<p>Semantics: a link means <em><code>fromId</code> depends on <code>toId</code></em>.
+<code>"solid"</code> is a normal dependency, <code>"dashed"</code> a weak/inherited
+one, and <code>"evolution"</code> is the arrowed link from an item to its evolved
+successor (pair it with the successor's <code>evolvedFrom</code> field).</p>
+
+<h3>3.3 Area (grouping blob)</h3>
+<p>An area is a smooth Bezier blob drawn around a set of items.</p>
+<pre><code>{
+  "id": "e5f6a7-...",
+  "itemIds": ["id-kettle", "id-water", "id-power"],
+  "vertexAdjustments": [],
+  "midpointOffsets": []
+}</code></pre>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th></tr>
+<tr><td><code>id</code></td><td>string</td><td><strong>yes</strong></td><td>Non-empty.</td></tr>
+<tr><td><code>itemIds</code></td><td>string[]</td><td><strong>yes</strong></td><td>Items enclosed by the blob. Unknown IDs are filtered out; an area left with zero valid items is dropped.</td></tr>
+<tr><td><code>vertexAdjustments</code></td><td>object[]</td><td>no</td><td>Manual shape fine-tuning (below). Safe to write as <code>[]</code>.</td></tr>
+<tr><td><code>midpointOffsets</code></td><td>object[]</td><td>no</td><td>Manual edge fine-tuning (below). Safe to write as <code>[]</code>.</td></tr>
+</table></div>
+<p>The blob's shape is <em>derived</em> — convex hull of the member items plus padding —
+so third-party writers only need <code>itemIds</code>. The two adjustment arrays exist
+so hand-tuned shapes survive a round-trip; <strong>preserve them if you
+read-modify-write a file, emit <code>[]</code> if you generate maps from
+scratch.</strong></p>
+<p>For completeness:</p>
+<ul>
+    <li><code>vertexAdjustments[]</code>: <code>{ "itemId": string, "radiusOffset": number, "handleLenA": number, "handleLenB": number, "handleAngleA": number, "handleAngleB": number }</code> — per-hull-vertex padding offset (map-canvas units, where the canvas is a 0–100 viewBox) and Bezier handle length/angle (radians) tweaks.</li>
+    <li><code>midpointOffsets[]</code>: <code>{ "fromId": string, "toId": string, "dx": number, "dy": number }</code> — displacement of the curve midpoint between two adjacent hull vertices, in the same canvas units.</li>
+</ul>
+
+<h3>3.4 Label (freestanding text)</h3>
+<pre><code>{
+  "id": "b9c0d1-...",
+  "text": "Team Platform owns this",
+  "posX": 0.4,
+  "posY": 0.15,
+  "width": 160
+}</code></pre>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th></tr>
+<tr><td><code>id</code></td><td>string</td><td><strong>yes</strong></td><td>Non-empty.</td></tr>
+<tr><td><code>text</code></td><td>string</td><td><strong>yes</strong></td><td>Label text.</td></tr>
+<tr><td><code>posX</code>, <code>posY</code></td><td>number</td><td><strong>yes</strong></td><td>Finite, 0–1, same coordinate system as items.</td></tr>
+<tr><td><code>width</code></td><td>number</td><td>no</td><td>Box width in pixels, 40–600. Defaults to 100.</td></tr>
+</table></div>
+
+<h3>3.5 Anchor</h3>
+<p>The anchor is the user need that sits at the top of a Wardley map. It is a plain
+string (<code>anchor</code>) plus a list of item IDs it connects to
+(<code>anchorLinks</code>). Unknown IDs in <code>anchorLinks</code> are filtered out
+on import.</p>
+
+<h2 id="import">4. Import behaviour (what Kartmakare does with your file)</h2>
+<p>Understanding the importer helps you write robust files:</p>
+<ol>
+    <li><strong>Discrimination.</strong> The JSON must parse, and must either be an object with <code>type: "kartmakare"</code> and array-valued <code>items</code>/<code>links</code>/<code>areas</code>, or a Compact JSON array. Otherwise the file is rejected outright.</li>
+    <li><strong>Field-level sanitising.</strong> Each entry is validated against the rules in section 3. Malformed entries are <em>dropped, not repaired</em> (except: missing <code>stage</code> becomes <code>""</code>, dangling <code>evolvedFrom</code> is deleted, dangling <code>itemIds</code>/<code>anchorLinks</code> entries are filtered). The user is told how many entries were dropped.</li>
+    <li><strong>Cross-reference grounding.</strong> Everything that points at an item ID is checked against the surviving items — links, areas, anchor links and <code>evolvedFrom</code> never dangle after import.</li>
+    <li><strong>Replacement, not merge.</strong> A successful import <em>replaces</em> the whole map.</li>
+    <li>Unknown extra fields on entities are currently carried along untouched, but don't rely on that — treat the fields in this spec as the contract.</li>
+</ol>
+
+<h2 id="example">5. Minimal valid example</h2>
+<p>The smallest useful file another app can emit:</p>
+<pre><code>{
+  "type": "kartmakare",
+  "version": 1,
+  "anchor": "Customer needs hot tea",
+  "anchorLinks": ["cup"],
+  "items": [
+    { "id": "cup",    "text": "Cup of tea", "stage": "custom",    "posX": 0.375, "posY": 0.85 },
+    { "id": "kettle", "text": "Kettle",     "stage": "product",   "posX": 0.625, "posY": 0.55 },
+    { "id": "power",  "text": "Power",      "stage": "commodity", "posX": 0.875, "posY": 0.20 }
+  ],
+  "links": [
+    { "id": "l1", "fromId": "cup",    "toId": "kettle", "style": "solid" },
+    { "id": "l2", "fromId": "kettle", "toId": "power",  "style": "solid" }
+  ],
+  "areas": [],
+  "labels": []
+}</code></pre>
+<p>Drop this onto Kartmakare's import view (or anywhere in the window) and it renders
+as a three-component map with the anchor at the top.</p>
+
+<h2 id="checklist">6. Writer's checklist</h2>
+<ul class="checklist">
+    <li><code>type</code> is <code>"kartmakare"</code>, <code>version</code> is <code>1</code></li>
+    <li><code>items</code>, <code>links</code>, <code>areas</code> present as arrays</li>
+    <li>Every <code>id</code> is a non-empty, unique string</li>
+    <li>All <code>posX</code>/<code>posY</code> are finite numbers in 0–1 (remember: <code>posY: 1</code> is the top)</li>
+    <li><code>stage</code> matches the column <code>posX</code> falls in</li>
+    <li><code>link.style</code> is <code>solid</code>, <code>dashed</code> or <code>evolution</code></li>
+    <li>Every <code>fromId</code>/<code>toId</code>/<code>itemIds</code>/<code>anchorLinks</code>/<code>evolvedFrom</code> references an existing item</li>
+    <li>Adjustment arrays preserved on round-trip, <code>[]</code> when generating fresh</li>
+</ul>
+
+<h2 id="sharelink">7. Share-link binary format (QR / <code>#k=</code> URLs)</h2>
+<p>Kartmakare share links carry the whole map in the URL fragment:</p>
+<pre><code>https://thekmf.github.io/Kartmakare/#k=&lt;payload&gt;</code></pre>
+<p>There is no server; the receiving page decodes the fragment locally. A tool that
+implements this section can emit links (or QR codes of them) that open directly in
+Kartmakare.</p>
+
+<h3>7.1 Pipeline</h3>
+<pre><code>map state → KM3 binary (7.3) → raw DEFLATE → base64url → "#k=" + payload</code></pre>
+<ul>
+    <li><strong>Raw DEFLATE</strong> (RFC 1951, <em>no</em> zlib/gzip wrapper). In a browser this is <code>CompressionStream('deflate-raw')</code>; in zlib it's <code>deflateRaw</code>.</li>
+    <li><strong>base64url</strong>: standard base64 with <code>+</code>→<code>-</code>, <code>/</code>→<code>_</code>, padding stripped. The payload must match <code>[A-Za-z0-9_-]+</code>.</li>
+    <li>Decoding reverses the steps, then the result is validated with the same rules as a file import (section 4).</li>
+</ul>
+<div class="callout"><strong>Legacy links:</strong> payloads whose decoded bytes start
+with the gzip magic <code>1f 8b</code> are the older format (gzip-wrapped Compact
+JSON). A valid raw-DEFLATE stream can never start with those bytes, so the two are
+unambiguous. New writers should only emit the current format.</div>
+
+<h3>7.2 Primitives</h3>
+<p>All integers are <strong>unsigned LEB128 varints</strong>: 7 bits per byte,
+little-endian groups, high bit = continuation. Signed values use
+<strong>zigzag</strong> coding first (<code>n → n&lt;0 ? -2n-1 : 2n</code>), then
+varint.</p>
+<p>Strings are UTF-8. String <em>lists</em> are written as all lengths (varints)
+first, then all UTF-8 bytes concatenated — lengths block, then text blob.</p>
+<p><strong>Positions</strong> (<code>posX</code>/<code>posY</code>, and label
+positions) are encoded from <code>q = round(pos * 1000)</code> (clamped 0–1000):</p>
+<ul>
+    <li>if <code>q</code> is a multiple of 25: varint of <code>(q/25) &lt;&lt; 1 | 1</code> (1 byte)</li>
+    <li>otherwise: varint of <code>q &lt;&lt; 1</code></li>
+</ul>
+<p>Decode: if bit 0 is set, <code>pos = ((v&gt;&gt;1) * 25) / 1000</code>, else
+<code>pos = (v&gt;&gt;1) / 1000</code>.</p>
+<p><strong>Stage numbering</strong> where used: <code>0</code> = unstaged,
+<code>1</code> = genesis, <code>2</code> = custom, <code>3</code> = product,
+<code>4</code> = commodity.<br>
+<strong>Link style numbering:</strong> <code>0</code> = solid, <code>1</code> =
+dashed, <code>2</code> = evolution.</p>
+
+<h3>7.3 Layout</h3>
+<p>In order, with <code>n</code> = item count:</p>
+<div class="table-scroll"><table>
+<tr><th>#</th><th>Field</th><th>Encoding</th></tr>
+<tr><td>1</td><td>format version</td><td>1 byte, must be <code>3</code></td></tr>
+<tr><td>2</td><td>item count <code>n</code></td><td>varint</td></tr>
+<tr><td>3</td><td>item texts</td><td>string list (7.2)</td></tr>
+<tr><td>4</td><td>item <code>posX</code> × n</td><td>position encoding</td></tr>
+<tr><td>5</td><td>item <code>posY</code> × n</td><td>position encoding</td></tr>
+<tr><td>6</td><td>stage exceptions</td><td>varint count, then per entry: varint item index + 1 byte stage (0–4)</td></tr>
+<tr><td>7</td><td>evolvedFrom pairs</td><td>varint count, then per entry: varint item index + varint source item index</td></tr>
+<tr><td>8</td><td>link count <code>m</code></td><td>varint</td></tr>
+<tr><td>9</td><td>link endpoints</td><td>per link: varint from-index + varint to-index</td></tr>
+<tr><td>10</td><td>link styles</td><td><code>ceil(m/4)</code> bytes, 2 bits per link, LSB-first within each byte</td></tr>
+<tr><td>11</td><td>area count</td><td>varint</td></tr>
+<tr><td>12</td><td>areas</td><td>per area, see below</td></tr>
+<tr><td>13</td><td>label count</td><td>varint</td></tr>
+<tr><td>14</td><td>label texts</td><td>string list</td></tr>
+<tr><td>15</td><td>label geometry</td><td>per label: posX + posY (position encoding) + varint width (<code>0</code> means default 100)</td></tr>
+<tr><td>16</td><td>anchor</td><td>varint byte-length + UTF-8</td></tr>
+<tr><td>17</td><td>anchor links</td><td>varint count + varint item indices</td></tr>
+</table></div>
+
+<p><strong>Stage exceptions (6):</strong> an item's stage defaults to the column
+derived from its position: <code>floor(round(posX*1000) / 250)</code>, clamped to 3
+(giving genesis/custom/product/commodity). Only items whose actual stage differs —
+chiefly unstaged items — get an exception entry.</p>
+
+<p><strong>Per area (12):</strong></p>
+<div class="table-scroll"><table>
+<tr><th>Field</th><th>Encoding</th></tr>
+<tr><td>member items</td><td>varint count + varint item indices</td></tr>
+<tr><td>vertex adjustments</td><td>varint count, then per entry: varint item index + 5 zigzag varints: <code>radiusOffset*100</code>, <code>handleLenA*100</code>, <code>handleLenB*100</code>, <code>handleAngleA*1000</code>, <code>handleAngleB*1000</code></td></tr>
+<tr><td>midpoint offsets</td><td>varint count, then per entry: varint from-index + varint to-index + 2 zigzag varints: <code>dx*10</code>, <code>dy*10</code></td></tr>
+</table></div>
+<p>A generator can write <code>0</code> for both adjustment counts (shapes are derived
+from the member items).</p>
+
+<h3>7.4 Writer's notes</h3>
+<ul>
+    <li>Item order is preserved and is what all indices refer to.</li>
+    <li><code>evolvedFrom</code> survives share links (it does <em>not</em> survive Compact JSON files).</li>
+    <li>Round all scaled values before varint/zigzag encoding.</li>
+    <li>Keep the final URL modest: QR version 40 at ECC L caps the whole URL at 2953 bytes, and phone cameras prefer far smaller codes. As a rule of thumb, maps up to ~180 components fit; beyond that emit a Readable JSON file instead.</li>
+    <li>The decoder validates everything (unknown indices are dropped, counts are bounded by payload size), but emit clean data — the sanitiser repairs by <em>dropping</em>, not fixing.</li>
+</ul>
+
+<h2 id="licensing">8. Licensing</h2>
+<div class="license">
+    <p>Kartmakare is released under the
+    <a href="https://polyformproject.org/licenses/noncommercial/1.0.0" rel="noopener" target="_blank">PolyForm Noncommercial License 1.0.0</a>
+    — free to use, modify and share for any <strong>noncommercial</strong> purpose. The full
+    license text ships with the source as
+    <a href="https://github.com/theKMF/Kartmakare/blob/main/LICENSE.md" rel="noopener" target="_blank">LICENSE.md</a>.</p>
+    <p>The license covers Kartmakare's software. <strong>This format specification is
+    published to enable interoperability</strong> — you are welcome to write your own
+    independent readers and writers for these formats, in any tool, under any license
+    you choose. Preserved compatibility is appreciated; the format version fields
+    exist so future revisions can evolve without breaking yours.</p>
+    <p>Copyright &copy; Kristoffer Fredriksson (TwoFour). Commercial licensing of
+    Kartmakare itself is available on request — the author retains dual-licensing
+    rights.</p>
+</div>
+
+<footer>
+    Kartmakare &middot; <a href="./">thekmf.github.io/Kartmakare</a> &middot;
+    Spec kept in sync with FORMAT.md in the
+    <a href="https://github.com/theKMF/Kartmakare" rel="noopener" target="_blank">repository</a>.
+</footer>
+</main>
+
+</body>
+</html>

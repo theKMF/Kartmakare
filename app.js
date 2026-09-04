@@ -68,7 +68,7 @@ function svgEl(tag, attrs) {
 }
 
 // ===== LOCAL STORAGE DATA LAYER =====
-const STORAGE_KEYS = { items: 'km-items', links: 'km-links', areas: 'km-areas', labels: 'km-labels', meta: 'km-meta' };
+const STORAGE_KEYS = { items: 'km-items', links: 'km-links', areas: 'km-areas', labels: 'km-labels', meta: 'km-meta', desktopMode: 'km-desktop-mode' };
 
 function storeRead(key) {
     try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
@@ -175,7 +175,6 @@ function showView(view) {
     document.body.classList.toggle('map-active', view === 'map');
     // Leaving the map view always drops any active mobile mode.
     if (view !== 'map' && IS_MOBILE) setMobileMode(null);
-    if (view !== 'map') setStickyConnectMode(false);
 }
 
 document.getElementById('btn-stage').addEventListener('click', () => {
@@ -537,7 +536,10 @@ function startLabelResize(e, label, el) {
 let areaSelectionBar = null;
 
 function enterAreaSelectMode() {
-    setStickyConnectMode(false);
+    // Area selection takes over the clicks; drop any gesture in flight but keep
+    // the interaction mode, which is restored implicitly when we exit.
+    if (connectMode) cancelConnect();
+    if (anchorConnectMode) cancelAnchorConnect();
     areaSelectMode = true;
     areaSelectedIds = new Set();
     mapCanvas.classList.add('area-select-active');
@@ -2404,31 +2406,63 @@ let connectMode = false;
 let connectFromId = null;
 let connectMouseLine = null;
 
-// --- Sticky "Connect mode" toggle (desktop header) ---
-// Distinct from `connectMode`, which means "a link is in flight". Sticky mode
-// keeps the canvas armed: every bubble click starts or completes a link, the
-// hover Connect/Evolve buttons are hidden, and dragging is off until it's
-// switched back off. Mobile has its own Link mode in the bottom bar instead.
-let stickyConnectMode = false;
-const connectModeBtn = document.getElementById('btn-connect-mode');
+// --- Desktop interaction mode (header segmented control) ---
+// Three modes, persisted per map in localStorage so the map reopens in the mode
+// it was left in:
+//   move    — drag components; no hover Connect/Evolve buttons (default for a
+//             first-time user, mirrors the mobile Move mode)
+//   connect — sticky linking: each bubble click starts or completes a link and
+//             the canvas stays armed; dragging off, no hover buttons
+//   tinker  — the full-affordance mode (hover Connect/Evolve + drag + evolve)
+// This is DESKTOP ONLY. Mobile keeps its own in-memory `mobileMode` driven by
+// the bottom bar and never reads or writes this preference, so the two can't
+// tread on each other.
+const DESKTOP_MAP_MODES = ['move', 'connect', 'tinker'];
+const DEFAULT_DESKTOP_MAP_MODE = 'move';
+let desktopMapMode = DEFAULT_DESKTOP_MAP_MODE;
+const mapModeToggle = document.getElementById('map-mode-toggle');
 
-function setStickyConnectMode(on) {
-    stickyConnectMode = !!on;
-    if (stickyConnectMode) {
-        if (anchorConnectMode) cancelAnchorConnect();
-        if (evolveMode) cancelEvolve();
-    } else if (connectMode) {
-        cancelConnect();
-    }
-    mapCanvas.classList.toggle('sticky-connect', stickyConnectMode);
-    if (connectModeBtn) {
-        connectModeBtn.classList.toggle('active', stickyConnectMode);
-        connectModeBtn.setAttribute('aria-pressed', stickyConnectMode ? 'true' : 'false');
+// Mode predicates. Always false on mobile — there `mobileMode` decides, and the
+// desktop mode must not leak into it.
+const inConnectMode = () => !IS_MOBILE && desktopMapMode === 'connect';
+const inMoveMode = () => !IS_MOBILE && desktopMapMode === 'move';
+
+function applyDesktopMapMode() {
+    if (IS_MOBILE) return;
+    DESKTOP_MAP_MODES.forEach(m => mapCanvas.classList.toggle('mode-' + m, desktopMapMode === m));
+    if (mapModeToggle) {
+        mapModeToggle.querySelectorAll('.map-mode-btn[data-mode]').forEach(b => {
+            const on = b.dataset.mode === desktopMapMode;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
     }
 }
 
-if (connectModeBtn) {
-    connectModeBtn.addEventListener('click', () => setStickyConnectMode(!stickyConnectMode));
+function loadDesktopMapMode() {
+    if (IS_MOBILE) return;
+    let stored = null;
+    try { stored = localStorage.getItem(STORAGE_KEYS.desktopMode); } catch {}
+    desktopMapMode = DESKTOP_MAP_MODES.includes(stored) ? stored : DEFAULT_DESKTOP_MAP_MODE;
+    applyDesktopMapMode();
+}
+
+function setDesktopMapMode(mode) {
+    if (IS_MOBILE || !DESKTOP_MAP_MODES.includes(mode) || mode === desktopMapMode) return;
+    desktopMapMode = mode;
+    // Any gesture in flight belonged to the mode we just left.
+    if (connectMode) cancelConnect();
+    if (anchorConnectMode) cancelAnchorConnect();
+    if (evolveMode) cancelEvolve();
+    applyDesktopMapMode();
+    try { localStorage.setItem(STORAGE_KEYS.desktopMode, desktopMapMode); } catch {}
+}
+
+if (mapModeToggle) {
+    mapModeToggle.addEventListener('click', (e) => {
+        const btn = e.target.closest('.map-mode-btn[data-mode]');
+        if (btn) setDesktopMapMode(btn.dataset.mode);
+    });
 }
 
 // --- Anchor connect mode state ---
@@ -2523,9 +2557,9 @@ document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (evolveMode) { cancelEvolve(); return; }
     if (anchorConnectMode) { cancelAnchorConnect(); return; }
-    // A link in flight is dropped first; a second Escape leaves sticky mode.
-    if (connectMode) { cancelConnect(); return; }
-    if (stickyConnectMode) setStickyConnectMode(false);
+    // Drops the link in flight. The mode itself is a persisted preference and
+    // is deliberately left alone — only the toggle changes it.
+    if (connectMode) cancelConnect();
 });
 
 // --- Evolution placement mode ---
@@ -2913,6 +2947,7 @@ function renderMap() {
             if (e.target.closest('.map-anchor-connect')) return; // handled by button
             e.stopPropagation();
             if (areaSelectMode) return;
+            if (inMoveMode()) return;
             // Item→Anchor: complete connection from an item to the anchor
             if (connectMode && connectFromId) {
                 completeAnchorLinkFromItem(connectFromId);
@@ -2967,7 +3002,7 @@ function renderMap() {
         bubble.addEventListener('mousedown', (e) => {
             if (e.target.closest('.map-bubble-connect') || e.target.closest('.map-bubble-evolve')) return;
             if (areaSelectMode) { toggleAreaItem(item.id); return; }
-            if (connectMode || anchorConnectMode || evolveMode || stickyConnectMode) return;
+            if (connectMode || anchorConnectMode || evolveMode || inConnectMode()) return;
             // On mobile, only drag in Move mode — other modes need taps to land as clicks.
             if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
@@ -2986,7 +3021,7 @@ function renderMap() {
                 startMobileEvolveGesture(e, item);
                 return;
             }
-            if (connectMode || anchorConnectMode || evolveMode || stickyConnectMode) return;
+            if (connectMode || anchorConnectMode || evolveMode || inConnectMode()) return;
             if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
         }, { passive: false });
@@ -3016,7 +3051,7 @@ function renderMap() {
             }
             // Armed for linking (desktop Connect mode toggle, or mobile Link mode):
             // first click starts the link, the next one completes it, mode stays on.
-            if (!connectMode && (stickyConnectMode || (IS_MOBILE && mobileMode === 'link'))) {
+            if (!connectMode && (inConnectMode() || (IS_MOBILE && mobileMode === 'link'))) {
                 e.stopPropagation();
                 startConnect(item.id);
                 updateMobileHint();
@@ -3702,6 +3737,7 @@ async function init() {
     loadAreas();
     loadLabels();
     loadAnchor();
+    loadDesktopMapMode();
     syncAnchorInput();
     const imported = await tryHashImport();
     const shared = !imported ? await tryProcessSharedText() : false;

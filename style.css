@@ -50,20 +50,18 @@ body {
 .btn-outline:hover { border-color: var(--border-hover); color: var(--text); background: #fff; }
 .btn-outline.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 
-/* Toggle-style button (map header "Connect mode"): .btn-outline plus a small
-   rectilinear switch that slides its knob when .active is set. */
-.btn-toggle { display: inline-flex; align-items: center; gap: 0.4rem; }
-.toggle-switch {
-    position: relative; flex: none; width: 1.4rem; height: 0.7rem;
-    border: 1px solid currentColor; opacity: 0.7;
+/* Map interaction mode (desktop header): Move / Connect / Tinker segmented
+   control, sharing the visual language of .map-zoom-toggle. */
+.map-mode-toggle { display: inline-flex; border: 1px solid var(--border); overflow: hidden; }
+.map-mode-btn {
+    background: none; border: none; border-right: 1px solid var(--border);
+    padding: 0.35rem 0.7rem; font-size: 0.7rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; font-family: inherit;
+    transition: background 0.15s, color 0.15s;
 }
-.toggle-switch::after {
-    content: ''; position: absolute; top: 1px; left: 1px;
-    width: 0.4rem; height: calc(100% - 2px); background: currentColor;
-    transition: transform 0.15s ease-out;
-}
-.btn-toggle.active .toggle-switch { opacity: 1; }
-.btn-toggle.active .toggle-switch::after { transform: translateX(0.5rem); }
+.map-mode-btn:last-child { border-right: none; }
+.map-mode-btn:hover { color: var(--text); background: #fff; }
+.map-mode-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
 
 .error-msg { max-width: 900px; margin: -0.75rem auto 0.75rem; padding: 0 1.5rem; color: var(--down); font-size: 0.8rem; min-height: 1.2rem; }
 .map-cta { max-width: 900px; margin: 0 auto; padding: 0 1.5rem 1.25rem; display: flex; justify-content: center; align-items: center; gap: 1rem; }
@@ -497,15 +495,24 @@ body {
 .map-canvas.connect-active .map-bubble:not(.connecting) .map-bubble-connect { display: none; }
 .map-canvas.connect-active .map-bubble:not(.connecting) .map-bubble-evolve { display: none; }
 
-/* Sticky "Connect mode" (desktop header toggle): the whole canvas is armed for
-   linking, so the hover Connect/Evolve buttons would only be in the way. */
-.map-canvas.sticky-connect .map-bubble-connect,
-.map-canvas.sticky-connect .map-bubble-evolve,
-.map-canvas.sticky-connect .map-anchor-connect { display: none; }
-.map-canvas.sticky-connect { cursor: crosshair; }
-.map-canvas.sticky-connect .map-bubble,
-.map-canvas.sticky-connect .map-bubble:active,
-.map-canvas.sticky-connect .map-anchor { cursor: crosshair; }
+/* Desktop interaction modes (header segmented control). Move and Connect both
+   drop the hover Connect/Evolve buttons — Move so nothing gets in the way of
+   dragging, Connect because the whole canvas is armed for linking. Tinker is
+   the full-affordance mode and needs no rules of its own. */
+.map-canvas.mode-move .map-bubble-connect,
+.map-canvas.mode-move .map-bubble-evolve,
+.map-canvas.mode-move .map-anchor-connect,
+.map-canvas.mode-connect .map-bubble-connect,
+.map-canvas.mode-connect .map-bubble-evolve,
+.map-canvas.mode-connect .map-anchor-connect { display: none; }
+
+.map-canvas.mode-connect { cursor: crosshair; }
+.map-canvas.mode-connect .map-bubble,
+.map-canvas.mode-connect .map-bubble:active,
+.map-canvas.mode-connect .map-anchor { cursor: crosshair; }
+
+/* Move mode keeps the bubble grab/grabbing cursors; the anchor isn't draggable. */
+.map-canvas.mode-move .map-anchor { cursor: default; }
 
 /* Evolved (ghost) components */
 .map-bubble.evolved .map-bubble-circle {
@@ -711,7 +718,7 @@ body.mobile .map-header-right .btn-outline { padding: 0.3rem 0.55rem; font-size:
 body.mobile #btn-map-add { display: none; }
 body.mobile #btn-map-back { display: none; }
 body.mobile .desktop-only-export { display: none; }
-body.mobile .desktop-only-connect { display: none; }
+body.mobile .desktop-only-mode { display: none; }
 body.mobile .map-title { font-size: 1rem; }
 body.mobile .map-zoom-toggle { display: inline-flex; }
 

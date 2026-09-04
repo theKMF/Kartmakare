@@ -135,9 +135,11 @@
             <h2 class="map-title km-home" role="link" tabindex="0">Kartmakare</h2>
         </div>
         <div class="map-header-right">
-            <button class="btn-outline btn-toggle desktop-only-connect" id="btn-connect-mode" type="button" aria-pressed="false">
-                <span class="toggle-switch" aria-hidden="true"></span>Connect mode
-            </button>
+            <div class="map-mode-toggle desktop-only-mode" id="map-mode-toggle" role="group" aria-label="Map interaction mode">
+                <button class="map-mode-btn" data-mode="move" type="button" aria-pressed="false" title="Drag components around. No hover buttons.">Move</button>
+                <button class="map-mode-btn" data-mode="connect" type="button" aria-pressed="false" title="Click a component, then another, to link them.">Connect</button>
+                <button class="map-mode-btn" data-mode="tinker" type="button" aria-pressed="false" title="Everything: drag, hover Connect/Evolve buttons.">Tinker</button>
+            </div>
             <button class="btn-outline" id="btn-map-add">+ Add Component</button>
             <div class="desktop-only-export">
                 <button class="btn-outline" id="btn-map-export">Export</button>

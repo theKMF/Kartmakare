@@ -50,6 +50,21 @@ body {
 .btn-outline:hover { border-color: var(--border-hover); color: var(--text); background: #fff; }
 .btn-outline.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 
+/* Toggle-style button (map header "Connect mode"): .btn-outline plus a small
+   rectilinear switch that slides its knob when .active is set. */
+.btn-toggle { display: inline-flex; align-items: center; gap: 0.4rem; }
+.toggle-switch {
+    position: relative; flex: none; width: 1.4rem; height: 0.7rem;
+    border: 1px solid currentColor; opacity: 0.7;
+}
+.toggle-switch::after {
+    content: ''; position: absolute; top: 1px; left: 1px;
+    width: 0.4rem; height: calc(100% - 2px); background: currentColor;
+    transition: transform 0.15s ease-out;
+}
+.btn-toggle.active .toggle-switch { opacity: 1; }
+.btn-toggle.active .toggle-switch::after { transform: translateX(0.5rem); }
+
 .error-msg { max-width: 900px; margin: -0.75rem auto 0.75rem; padding: 0 1.5rem; color: var(--down); font-size: 0.8rem; min-height: 1.2rem; }
 .map-cta { max-width: 900px; margin: 0 auto; padding: 0 1.5rem 1.25rem; display: flex; justify-content: center; align-items: center; gap: 1rem; }
 .btn-map-hero { background: var(--text); color: #fff; border: none; font-size: 0.8rem; font-weight: 600; padding: 0.55rem 1.5rem; cursor: pointer; transition: background 0.15s, opacity 0.15s, transform 0.1s; font-family: inherit; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 0.5rem; }
@@ -482,6 +497,16 @@ body {
 .map-canvas.connect-active .map-bubble:not(.connecting) .map-bubble-connect { display: none; }
 .map-canvas.connect-active .map-bubble:not(.connecting) .map-bubble-evolve { display: none; }
 
+/* Sticky "Connect mode" (desktop header toggle): the whole canvas is armed for
+   linking, so the hover Connect/Evolve buttons would only be in the way. */
+.map-canvas.sticky-connect .map-bubble-connect,
+.map-canvas.sticky-connect .map-bubble-evolve,
+.map-canvas.sticky-connect .map-anchor-connect { display: none; }
+.map-canvas.sticky-connect { cursor: crosshair; }
+.map-canvas.sticky-connect .map-bubble,
+.map-canvas.sticky-connect .map-bubble:active,
+.map-canvas.sticky-connect .map-anchor { cursor: crosshair; }
+
 /* Evolved (ghost) components */
 .map-bubble.evolved .map-bubble-circle {
     border-style: dashed; border-color: #1a1a2e; background: transparent;
@@ -686,6 +711,7 @@ body.mobile .map-header-right .btn-outline { padding: 0.3rem 0.55rem; font-size:
 body.mobile #btn-map-add { display: none; }
 body.mobile #btn-map-back { display: none; }
 body.mobile .desktop-only-export { display: none; }
+body.mobile .desktop-only-connect { display: none; }
 body.mobile .map-title { font-size: 1rem; }
 body.mobile .map-zoom-toggle { display: inline-flex; }
 

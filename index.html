@@ -19,8 +19,8 @@
 <div id="consent-overlay" class="consent-overlay">
     <div class="consent-box" id="consent-ask">
         <h2>Welcome to Kartmakare</h2>
-        <p>Kartmakare needs to store data on your computer to work. The data will only be accessed by the tool and nothing you do in the tool will be shared with Twofour.</p>
-        <p>We will also count how many times this tool is used and when it is used, but nothing else. This is so that we can see if it's popular, and if we should maybe create other tools in the future.</p>
+        <p>Kartmakare saves everything locally on your device. The data is only ever read by the tool itself, and nothing you do here is shared with anyone.</p>
+        <p>Visits to this website are counted — when the page is opened, nothing more. That's only so we can see whether the tool is popular.</p>
         <p>Is this okay?</p>
         <div class="consent-buttons">
             <button class="btn btn-accent" id="consent-yes">Yes</button>
@@ -28,7 +28,7 @@
         </div>
     </div>
     <div class="consent-box" id="consent-declined" style="display:none;">
-        <p>I changed my mind, Kartmakare may store data on my computer, and it's okay that you see if it's popular by logging when this URL is opened.</p>
+        <p>I changed my mind, Kartmakare may save data locally on my device, and it's okay to count when this URL is opened.</p>
         <div class="consent-buttons">
             <button class="btn btn-accent" id="consent-letsgo">Let's go</button>
         </div>
@@ -135,6 +135,9 @@
             <h2 class="map-title km-home" role="link" tabindex="0">Kartmakare</h2>
         </div>
         <div class="map-header-right">
+            <button class="btn-outline btn-toggle desktop-only-connect" id="btn-connect-mode" type="button" aria-pressed="false">
+                <span class="toggle-switch" aria-hidden="true"></span>Connect mode
+            </button>
             <button class="btn-outline" id="btn-map-add">+ Add Component</button>
             <div class="desktop-only-export">
                 <button class="btn-outline" id="btn-map-export">Export</button>

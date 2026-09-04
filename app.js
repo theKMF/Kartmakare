@@ -175,6 +175,7 @@ function showView(view) {
     document.body.classList.toggle('map-active', view === 'map');
     // Leaving the map view always drops any active mobile mode.
     if (view !== 'map' && IS_MOBILE) setMobileMode(null);
+    if (view !== 'map') setStickyConnectMode(false);
 }
 
 document.getElementById('btn-stage').addEventListener('click', () => {
@@ -536,6 +537,7 @@ function startLabelResize(e, label, el) {
 let areaSelectionBar = null;
 
 function enterAreaSelectMode() {
+    setStickyConnectMode(false);
     areaSelectMode = true;
     areaSelectedIds = new Set();
     mapCanvas.classList.add('area-select-active');
@@ -2402,6 +2404,33 @@ let connectMode = false;
 let connectFromId = null;
 let connectMouseLine = null;
 
+// --- Sticky "Connect mode" toggle (desktop header) ---
+// Distinct from `connectMode`, which means "a link is in flight". Sticky mode
+// keeps the canvas armed: every bubble click starts or completes a link, the
+// hover Connect/Evolve buttons are hidden, and dragging is off until it's
+// switched back off. Mobile has its own Link mode in the bottom bar instead.
+let stickyConnectMode = false;
+const connectModeBtn = document.getElementById('btn-connect-mode');
+
+function setStickyConnectMode(on) {
+    stickyConnectMode = !!on;
+    if (stickyConnectMode) {
+        if (anchorConnectMode) cancelAnchorConnect();
+        if (evolveMode) cancelEvolve();
+    } else if (connectMode) {
+        cancelConnect();
+    }
+    mapCanvas.classList.toggle('sticky-connect', stickyConnectMode);
+    if (connectModeBtn) {
+        connectModeBtn.classList.toggle('active', stickyConnectMode);
+        connectModeBtn.setAttribute('aria-pressed', stickyConnectMode ? 'true' : 'false');
+    }
+}
+
+if (connectModeBtn) {
+    connectModeBtn.addEventListener('click', () => setStickyConnectMode(!stickyConnectMode));
+}
+
 // --- Anchor connect mode state ---
 let anchorConnectMode = false;
 let anchorConnectMouseLine = null;
@@ -2491,9 +2520,12 @@ mapCanvas.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && evolveMode) cancelEvolve();
-    if (e.key === 'Escape' && anchorConnectMode) cancelAnchorConnect();
-    if (e.key === 'Escape' && connectMode) cancelConnect();
+    if (e.key !== 'Escape') return;
+    if (evolveMode) { cancelEvolve(); return; }
+    if (anchorConnectMode) { cancelAnchorConnect(); return; }
+    // A link in flight is dropped first; a second Escape leaves sticky mode.
+    if (connectMode) { cancelConnect(); return; }
+    if (stickyConnectMode) setStickyConnectMode(false);
 });
 
 // --- Evolution placement mode ---
@@ -2935,7 +2967,7 @@ function renderMap() {
         bubble.addEventListener('mousedown', (e) => {
             if (e.target.closest('.map-bubble-connect') || e.target.closest('.map-bubble-evolve')) return;
             if (areaSelectMode) { toggleAreaItem(item.id); return; }
-            if (connectMode || anchorConnectMode || evolveMode) return;
+            if (connectMode || anchorConnectMode || evolveMode || stickyConnectMode) return;
             // On mobile, only drag in Move mode — other modes need taps to land as clicks.
             if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
@@ -2954,7 +2986,7 @@ function renderMap() {
                 startMobileEvolveGesture(e, item);
                 return;
             }
-            if (connectMode || anchorConnectMode || evolveMode) return;
+            if (connectMode || anchorConnectMode || evolveMode || stickyConnectMode) return;
             if (IS_MOBILE && mobileMode !== 'move') return;
             startMapDrag(e, item, bubble);
         }, { passive: false });
@@ -2982,8 +3014,9 @@ function renderMap() {
                 completeAnchorConnect(item.id);
                 return;
             }
-            // Mobile Link mode: first tap starts connect, second tap completes it.
-            if (IS_MOBILE && mobileMode === 'link' && !connectMode) {
+            // Armed for linking (desktop Connect mode toggle, or mobile Link mode):
+            // first click starts the link, the next one completes it, mode stays on.
+            if (!connectMode && (stickyConnectMode || (IS_MOBILE && mobileMode === 'link'))) {
                 e.stopPropagation();
                 startConnect(item.id);
                 updateMobileHint();

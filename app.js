@@ -175,6 +175,7 @@ function showView(view) {
     document.body.classList.toggle('map-active', view === 'map');
     // Leaving the map view always drops any active mobile mode.
     if (view !== 'map' && IS_MOBILE) setMobileMode(null);
+    if (view !== 'map') clearMoveSelection();
 }
 
 document.getElementById('btn-stage').addEventListener('click', () => {
@@ -540,6 +541,7 @@ function enterAreaSelectMode() {
     // the interaction mode, which is restored implicitly when we exit.
     if (connectMode) cancelConnect();
     if (anchorConnectMode) cancelAnchorConnect();
+    clearMoveSelection();
     areaSelectMode = true;
     areaSelectedIds = new Set();
     mapCanvas.classList.add('area-select-active');
@@ -2454,6 +2456,7 @@ function setDesktopMapMode(mode) {
     if (connectMode) cancelConnect();
     if (anchorConnectMode) cancelAnchorConnect();
     if (evolveMode) cancelEvolve();
+    clearMoveSelection();
     applyDesktopMapMode();
     try { localStorage.setItem(STORAGE_KEYS.desktopMode, desktopMapMode); } catch {}
 }
@@ -2464,6 +2467,88 @@ if (mapModeToggle) {
         if (btn) setDesktopMapMode(btn.dataset.mode);
     });
 }
+
+// --- Move-mode marquee selection (desktop) ---
+// Rubber-band a rectangle across empty canvas in Move mode to pick several
+// components, then drag any one of them to move the whole set. The selection is
+// ephemeral: never persisted, and dropped by a plain click, a mode change,
+// area-select, Escape, or leaving the map view.
+const MARQUEE_MIN_PX = 4; // shorter than this and the gesture counts as a click
+const MARQUEE_IGNORE = '.map-bubble, .map-label, .map-anchor, .map-assign-fab, .area-vertex-handle, .link-midpoint';
+let moveSelectedIds = new Set();
+let marqueeEl = null;
+
+function paintMoveSelection() {
+    mapCanvas.querySelectorAll('.map-bubble[data-id]').forEach(el => {
+        el.classList.toggle('move-selected', moveSelectedIds.has(el.dataset.id));
+    });
+}
+
+function clearMoveSelection() {
+    if (!moveSelectedIds.size) return;
+    moveSelectedIds.clear();
+    paintMoveSelection();
+}
+
+function startMarquee(e) {
+    const rect = mapCanvas.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    // Shift keeps what's already picked, so several sweeps can build one set.
+    const base = new Set(e.shiftKey ? moveSelectedIds : []);
+    let moved = false;
+
+    marqueeEl = document.createElement('div');
+    marqueeEl.className = 'map-marquee';
+    mapCanvas.appendChild(marqueeEl);
+
+    // Bubble centres in canvas px, measured once — nothing moves mid-marquee.
+    const targets = [...mapCanvas.querySelectorAll('.map-bubble[data-id]')].map(el => ({
+        id: el.dataset.id,
+        cx: (parseFloat(el.style.left) / 100) * rect.width,
+        cy: (parseFloat(el.style.top) / 100) * rect.height,
+    }));
+
+    function onMove(e2) {
+        const x = Math.max(0, Math.min(rect.width, e2.clientX - rect.left));
+        const y = Math.max(0, Math.min(rect.height, e2.clientY - rect.top));
+        const left = Math.min(startX, x), top = Math.min(startY, y);
+        const w = Math.abs(x - startX), h = Math.abs(y - startY);
+        if (w >= MARQUEE_MIN_PX || h >= MARQUEE_MIN_PX) moved = true;
+        marqueeEl.style.left = left + 'px';
+        marqueeEl.style.top = top + 'px';
+        marqueeEl.style.width = w + 'px';
+        marqueeEl.style.height = h + 'px';
+
+        // A component is caught when its centre falls inside the rectangle.
+        moveSelectedIds = new Set(base);
+        targets.forEach(t => {
+            if (t.cx >= left && t.cx <= left + w && t.cy >= top && t.cy <= top + h) moveSelectedIds.add(t.id);
+        });
+        paintMoveSelection();
+    }
+
+    function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        if (marqueeEl) { marqueeEl.remove(); marqueeEl = null; }
+        mapCanvas.classList.remove('marquee-active');
+        // A click with no sweep drops the selection (keeps it if Shift was held).
+        if (!moved) moveSelectedIds = new Set(base);
+        paintMoveSelection();
+    }
+
+    mapCanvas.classList.add('marquee-active');
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+}
+
+mapCanvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || !inMoveMode() || areaSelectMode || draggingHandle) return;
+    if (e.target.closest(MARQUEE_IGNORE)) return;
+    e.preventDefault(); // no native text/image selection drag while sweeping
+    startMarquee(e);
+});
 
 // --- Anchor connect mode state ---
 let anchorConnectMode = false;
@@ -2559,7 +2644,8 @@ document.addEventListener('keydown', (e) => {
     if (anchorConnectMode) { cancelAnchorConnect(); return; }
     // Drops the link in flight. The mode itself is a persisted preference and
     // is deliberately left alone — only the toggle changes it.
-    if (connectMode) cancelConnect();
+    if (connectMode) { cancelConnect(); return; }
+    clearMoveSelection();
 });
 
 // --- Evolution placement mode ---
@@ -3095,6 +3181,10 @@ function renderMap() {
         mapCanvas.appendChild(el);
     });
 
+    // Bubbles were just rebuilt: drop ids that no longer exist, repaint the rest.
+    moveSelectedIds.forEach(id => { if (!items.some(i => i.id === id)) moveSelectedIds.delete(id); });
+    paintMoveSelection();
+
     renderLinks();
 }
 
@@ -3233,8 +3323,31 @@ function startMapDrag(e, item, bubble) {
 
     const bxPct = parseFloat(bubble.style.left);
     const byPct = parseFloat(bubble.style.top);
+
+    // Group move: dragging a marquee-selected component carries the whole set.
+    // Dragging anything outside the selection drops it first, as in any canvas
+    // tool, so the drag can't silently move components you can't see.
+    if (!moveSelectedIds.has(item.id)) clearMoveSelection();
+    const groupBubbles = (moveSelectedIds.has(item.id) ? [...moveSelectedIds] : [])
+        .filter(id => id !== item.id)
+        .map(id => {
+            const el = mapCanvas.querySelector(`.map-bubble[data-id="${CSS.escape(id)}"]`);
+            return el ? { id, el, startX: parseFloat(el.style.left), startY: parseFloat(el.style.top) } : null;
+        })
+        .filter(Boolean);
+    const isGroup = groupBubbles.length > 0;
+
+    // Bounds of the whole set, so the shared delta can be clamped as one shape.
+    const startsX = [bxPct, ...groupBubbles.map(g => g.startX)];
+    const startsY = [byPct, ...groupBubbles.map(g => g.startY)];
+    const groupMinX = Math.min(...startsX), groupMaxX = Math.max(...startsX);
+    const groupMinY = Math.min(...startsY), groupMaxY = Math.max(...startsY);
+    groupBubbles.forEach(g => g.el.classList.add('dragging'));
+
     showMapGrid(byPct, bxPct);
-    collectMapBubbles(item.id, rect);
+    // Gravity push is for a single travelling component; with a group in flight
+    // it just shoves the rest of the map around, so it's skipped.
+    if (!isGroup) collectMapBubbles(item.id, rect);
 
     function onMove(e2) {
         const p = e2.touches ? e2.touches[0] : e2;
@@ -3242,12 +3355,27 @@ function startMapDrag(e, item, bubble) {
         const rawY = (p.clientY - rect.top - dragOffsetY) / rect.height;
         const sx = snapToGrid(Math.max(0.02, Math.min(0.98, rawX)));
         const sy = snapToGrid(Math.max(0.02, Math.min(0.98, rawY)));
-        const pctX = sx * 100;
-        const pctY = sy * 100;
+        let pctX = sx * 100;
+        let pctY = sy * 100;
+
+        if (isGroup) {
+            // One snapped delta for everyone, clamped against the set's bounds —
+            // clamping each component separately would squash the group's shape
+            // as it reaches an edge.
+            const dX = Math.max(2 - groupMinX, Math.min(98 - groupMaxX, pctX - bxPct));
+            const dY = Math.max(2 - groupMinY, Math.min(98 - groupMaxY, pctY - byPct));
+            pctX = bxPct + dX;
+            pctY = byPct + dY;
+            groupBubbles.forEach(g => {
+                g.el.style.left = (g.startX + dX) + '%';
+                g.el.style.top = (g.startY + dY) + '%';
+            });
+        }
+
         bubble.style.left = pctX + '%';
         bubble.style.top = pctY + '%';
         updateMapGrid(pctX, pctY);
-        updateMapGravityPush(pctX, pctY, rect);
+        if (!isGroup) updateMapGravityPush(pctX, pctY, rect);
         scheduleUpdateLinkPositions();
         moved = true;
     }
@@ -3258,21 +3386,24 @@ function startMapDrag(e, item, bubble) {
         window.removeEventListener('mouseup', onUp);
         window.removeEventListener('touchend', onUp);
         bubble.classList.remove('dragging');
+        groupBubbles.forEach(g => g.el.classList.remove('dragging'));
         removeMapGrid();
         releaseMapGravityPush();
 
         if (moved) {
-            const finalX = parseFloat(bubble.style.left) / 100;
-            const finalY = 1 - parseFloat(bubble.style.top) / 100;
-            const newStage = stageFromX(parseFloat(bubble.style.left));
-
-            const i = items.find(x => x.id === item.id);
-            if (i) {
+            // Every mover re-derives its stage from where it actually landed.
+            const commit = (id, el) => {
+                const i = items.find(x => x.id === id);
+                if (!i) return;
+                const lx = parseFloat(el.style.left);
+                const newStage = stageFromX(lx);
                 if (newStage !== i.stage) i.stage = newStage;
-                i.posX = finalX;
-                i.posY = finalY;
-                saveItems();
-            }
+                i.posX = lx / 100;
+                i.posY = 1 - parseFloat(el.style.top) / 100;
+            };
+            commit(item.id, bubble);
+            groupBubbles.forEach(g => commit(g.id, g.el));
+            saveItems();
             renderLinks();
         }
     }

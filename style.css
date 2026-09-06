@@ -17,6 +17,9 @@
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
     --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
     --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+    /* Selected-mode highlight for the map-header button bar */
+    --mode-on-bg: #ffd400;
+    --mode-on-text: #166534;
     --genesis: #ef4444;
     --custom: #f59e0b;
     --product: #3b82f6;
@@ -61,7 +64,10 @@ body {
 }
 .map-mode-btn:last-child { border-right: none; }
 .map-mode-btn:hover { color: var(--text); background: #fff; }
-.map-mode-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.map-mode-btn.active {
+    background: var(--mode-on-bg); color: var(--mode-on-text); font-weight: 700;
+}
+.map-mode-btn.active:hover { background: var(--mode-on-bg); color: var(--mode-on-text); }
 
 .error-msg { max-width: 900px; margin: -0.75rem auto 0.75rem; padding: 0 1.5rem; color: var(--down); font-size: 0.8rem; min-height: 1.2rem; }
 .map-cta { max-width: 900px; margin: 0 auto; padding: 0 1.5rem 1.25rem; display: flex; justify-content: center; align-items: center; gap: 1rem; }
@@ -513,6 +519,22 @@ body {
 
 /* Move mode keeps the bubble grab/grabbing cursors; the anchor isn't draggable. */
 .map-canvas.mode-move .map-anchor { cursor: default; }
+
+/* Marquee multi-select, Move mode only. The rectangle sits above the link SVG
+   but below the bubbles (z-index 6) so the selection rings stay readable, and
+   never takes pointer events — the sweep is tracked on window. */
+.map-marquee {
+    position: absolute; z-index: 5; pointer-events: none;
+    border: 1px dashed var(--accent); background: var(--accent-glow);
+}
+.map-canvas.marquee-active { cursor: crosshair; user-select: none; }
+/* Solid fill + a firm ring: a translucent ring alone disappears against the
+   marquee's own translucent fill while the sweep is still live. */
+.map-bubble.move-selected .map-bubble-circle {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    box-shadow: 0 0 0 4px rgba(80,70,229,0.45), var(--shadow-md);
+}
 
 /* Evolved (ghost) components */
 .map-bubble.evolved .map-bubble-circle {

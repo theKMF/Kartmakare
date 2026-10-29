@@ -836,7 +836,7 @@ body.mobile .map-canvas-wrap::-webkit-scrollbar { display: none; }
 .mobile-only-share { display: none; }
 
 /* Mobile subbar — sits directly beneath the map header on touch devices,
-   carrying the zoom toggle and a Share Map button. Hidden on desktop. */
+   carrying the zoom toggle plus Save JSON and Share Map buttons. Hidden on desktop. */
 .map-subbar { display: none; }
 body.mobile .map-subbar {
     display: flex; align-items: center; justify-content: space-between;
@@ -845,6 +845,7 @@ body.mobile .map-subbar {
     flex-shrink: 0;
 }
 .map-subbar-share { padding: 0.3rem 0.65rem; font-size: 0.65rem; }
+.map-subbar-actions { display: flex; gap: 0.4rem; }
 
 /* Hide hover-only UI on bubbles and anchor */
 body.mobile .map-bubble-connect,

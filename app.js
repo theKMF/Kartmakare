@@ -160,6 +160,7 @@ function showError(msg) {
 // ===== VIEW SWITCHING =====
 function showView(view) {
     if (editingItemId) saveEdit();
+    const enteringMap = view === 'map' && !mapView.classList.contains('active');
     listView.classList.add('hidden');
     stageView.classList.remove('active');
     mapView.classList.remove('active');
@@ -175,6 +176,8 @@ function showView(view) {
     document.body.classList.toggle('map-active', view === 'map');
     // Leaving the map view always drops any active mobile mode.
     if (view !== 'map' && IS_MOBILE) setMobileMode(null);
+    // Entering it starts in Move, matching the desktop default.
+    if (enteringMap && IS_MOBILE && mobileMode === null) setMobileMode('move');
     if (view !== 'map') clearMoveSelection();
 }
 
@@ -3489,6 +3492,10 @@ if (mobileMoreBtn && mobileOverflow) {
         else if (action === 'evolve') startMobileEvolveFlow();
     });
 }
+
+// --- Subbar "Save JSON" button — downloads the map as Readable JSON.
+const subbarSaveBtn = document.getElementById('map-subbar-save');
+if (subbarSaveBtn) subbarSaveBtn.addEventListener('click', saveMapDataReadable);
 
 // --- Subbar "Share Map" button — opens the existing share-menu, anchored below the button.
 const subbarShareBtn = document.getElementById('map-subbar-share');

@@ -4103,6 +4103,9 @@ installTrack.addEventListener('scroll', paintInstallDots, { passive: true });
 
 function openInstall() {
     clearTimeout(installAutoTimer);
+    // On a phone the browser's own install dialog is already the rich one (icon,
+    // screenshots, description), so ours would just be the same thing twice.
+    if (IS_MOBILE && deferredInstallPrompt) { runNativeInstall(); return; }
     const steps = deferredInstallPrompt ? null : manualInstallSteps();
     if (!deferredInstallPrompt && !steps) return;
     installSteps.innerHTML = steps || '';
@@ -4130,7 +4133,7 @@ installModal.addEventListener('click', (e) => { if (e.target === installModal) c
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && installModal.classList.contains('open')) closeInstall(true);
 });
-installGo.addEventListener('click', async () => {
+async function runNativeInstall() {
     const prompt = deferredInstallPrompt;
     if (!prompt) return;
     // The event can be used once; the browser fires a fresh one if it is offerable again.
@@ -4142,14 +4145,17 @@ installGo.addEventListener('click', async () => {
         const { outcome } = await prompt.userChoice;
         if (outcome !== 'accepted') markInstallDismissed();
     } catch { /* ignore */ }
-});
+}
+installGo.addEventListener('click', runNativeInstall);
 
 window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
+    // Desktop: hold the event back and show our popup first. Phone: the browser keeps
+    // its own install nudge, the header button opens its dialog directly, no auto popup.
+    if (!IS_MOBILE) e.preventDefault();
     if (isInstalledApp()) return;
     deferredInstallPrompt = e;
     showInstallTriggers(true);
-    scheduleInstallAuto();
+    if (!IS_MOBILE) scheduleInstallAuto();
 });
 window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;

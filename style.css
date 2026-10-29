@@ -323,6 +323,57 @@ body {
 .about-url.copied { border-color: #15803d; color: #15803d; }
 .about-share-btn { width: 100%; padding: 0.65rem 1rem; }
 
+/* ========== INSTALL BUTTON + POPUP ========== */
+.btn-install { color: var(--accent); border-color: var(--accent); margin-right: 0.4rem; }
+.install-modal { width: 440px; padding: 1.5rem 1.5rem 1.25rem; }
+.install-head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 1.1rem; }
+.install-icon { width: 56px; height: 56px; flex: none; border-radius: 12px; box-shadow: var(--shadow-sm), 0 0 0 1px var(--border); }
+.install-modal h3 { margin-bottom: 0.15rem; }
+.install-sub { font-size: 0.85rem; color: var(--text-muted); }
+
+/* Screenshot carousel — the same images the manifest lists */
+.install-shots { margin: 0 -1.5rem 1rem; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.install-shots[hidden] { display: none; }
+.install-track {
+    display: flex; gap: 0.75rem; padding: 0.9rem 1.5rem;
+    overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 1.5rem;
+    scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.install-track::-webkit-scrollbar { display: none; }
+.install-track img {
+    flex: none; scroll-snap-align: start; display: block;
+    height: 240px; width: auto; background: var(--surface);
+    box-shadow: var(--shadow-md), 0 0 0 1px var(--border);
+}
+.install-track.wide img { height: 220px; }
+.install-dots { display: flex; justify-content: center; gap: 6px; padding: 0 0 0.75rem; }
+.install-dots button {
+    width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%;
+    background: var(--border-hover); cursor: pointer; transition: background 0.15s, transform 0.15s;
+}
+.install-dots button.active { background: var(--accent); transform: scale(1.25); }
+
+.install-points { list-style: none; margin: 0 0 1.1rem; padding: 0; font-size: 0.85rem; color: var(--text); }
+.install-points li { position: relative; padding-left: 1.5rem; line-height: 1.45; margin-bottom: 0.4rem; }
+.install-points li::before {
+    content: ""; position: absolute; left: 0.2rem; top: 0.3rem; width: 0.55rem; height: 0.3rem;
+    border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg);
+}
+.install-steps {
+    font-size: 0.85rem; line-height: 1.6; color: var(--text);
+    background: var(--accent-light); padding: 0.75rem 0.9rem; margin-bottom: 1.1rem;
+}
+.install-steps[hidden] { display: none; }
+.install-steps svg { width: 1.05em; height: 1.05em; vertical-align: -0.18em; margin: 0 0.1em; color: var(--accent); }
+.install-steps b { font-weight: 600; }
+.install-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.install-actions .btn-outline { font-size: 0.8rem; padding: 0.55rem 1rem; }
+.install-actions .install-go { padding: 0.6rem 1.6rem; }
+.install-actions .install-go[hidden] { display: none; }
+
+body.mobile .install-modal { width: 100%; }
+body.mobile .install-track img { height: 300px; }
+
 /* ========== UPDATE TOAST (service-worker prompt) ========== */
 .update-toast {
     position: fixed;

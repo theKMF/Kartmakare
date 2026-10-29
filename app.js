@@ -68,7 +68,7 @@ function svgEl(tag, attrs) {
 }
 
 // ===== LOCAL STORAGE DATA LAYER =====
-const STORAGE_KEYS = { items: 'km-items', links: 'km-links', areas: 'km-areas', labels: 'km-labels', meta: 'km-meta', desktopMode: 'km-desktop-mode' };
+const STORAGE_KEYS = { items: 'km-items', links: 'km-links', areas: 'km-areas', labels: 'km-labels', meta: 'km-meta', desktopMode: 'km-desktop-mode', installDismissed: 'km-install-dismissed' };
 
 function storeRead(key) {
     try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
@@ -3915,6 +3915,7 @@ if (updateBtn) updateBtn.addEventListener('click', () => {
 if (updateClose) updateClose.addEventListener('click', hideUpdateToast);
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    const hadController = !!navigator.serviceWorker.controller;
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
             // Only show the toast for GENUINELY new updates detected during this
@@ -3944,11 +3945,219 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
         // When the controlling SW changes (after user clicked Update and
         // SKIP_WAITING took effect), reload so the page runs the fresh code.
+        // Not on a first visit: sw.js calls clients.claim(), which fires
+        // controllerchange on a page that had no controller — reloading then
+        // would throw away whatever the page just did (e.g. a #k= import).
         let reloading = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (reloading) return;
+            if (reloading || !hadController) return;
             reloading = true;
             window.location.reload();
         });
     });
+}
+
+// ===== INSTALL PROMPT =====
+// Chrome/Edge (desktop + Android) fire beforeinstallprompt once the app is
+// installable. We keep the event and show our own popup — icon, the manifest's
+// screenshots as a carousel, selling points — whose Install button hands over to
+// the browser's own dialog. iOS/iPadOS and macOS Safari have no such event, so the
+// popup shows the manual steps there instead. Nothing shows once installed, on
+// file://, or in browsers that can't install (Firefox desktop).
+// The header Install buttons appear whenever installing is possible; the popup
+// also opens by itself once, a few seconds in, while the user is on the
+// component list — and stays away for INSTALL_DISMISS_DAYS after "Not now".
+const INSTALL_DISMISS_DAYS = 30;
+const INSTALL_AUTO_DELAY_MS = 6000;
+const INSTALL_RETRY_MS = 5000;
+const INSTALL_SLIDE_MS = 3500;
+const IOS_SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M7 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1"/></svg>';
+
+const installModal = document.getElementById('install-modal');
+const installTriggers = document.querySelectorAll('[data-install-trigger]');
+const installGo = document.getElementById('install-go');
+const installLater = document.getElementById('install-later');
+const installSteps = document.getElementById('install-steps');
+const installShots = document.getElementById('install-shots');
+const installTrack = document.getElementById('install-track');
+const installDots = document.getElementById('install-dots');
+let deferredInstallPrompt = null;
+let installAutoTimer = null;
+let installSlideTimer = null;
+let installShotsLoaded = false;
+
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_MAC_SAFARI = !IS_IOS && /Macintosh/.test(navigator.userAgent)
+    && /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox|FxiOS|OPR/.test(navigator.userAgent);
+const INSTALL_SERVED = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+function isInstalledApp() {
+    return matchMedia('(display-mode: standalone)').matches
+        || matchMedia('(display-mode: window-controls-overlay)').matches
+        || navigator.standalone === true;
+}
+// iOS 16.4+ allows Add to Home Screen from any browser's share sheet;
+// macOS Safari 17+ has File › Add to Dock.
+function manualInstallSteps() {
+    if (IS_IOS) return `Tap ${IOS_SHARE_ICON} <b>Share</b>, then <b>Add to Home Screen</b>.`;
+    if (IS_MAC_SAFARI) return 'In the menu bar, choose <b>File</b> &rsaquo; <b>Add to Dock</b>.';
+    return null;
+}
+function showInstallTriggers(show) {
+    installTriggers.forEach(b => { b.hidden = !show; });
+}
+function installDismissedRecently() {
+    let t = 0;
+    try { t = Number(localStorage.getItem(STORAGE_KEYS.installDismissed)) || 0; } catch { /* ignore */ }
+    return Date.now() - t < INSTALL_DISMISS_DAYS * 86400000;
+}
+function markInstallDismissed() {
+    try { localStorage.setItem(STORAGE_KEYS.installDismissed, String(Date.now())); } catch { /* ignore */ }
+}
+
+function scheduleInstallAuto() {
+    clearTimeout(installAutoTimer);
+    if (installDismissedRecently()) return;
+    const tryOpen = () => {
+        if (isInstalledApp() || (!deferredInstallPrompt && !manualInstallSteps())) return;
+        // Wait for a calm moment: consent given, on the list, nothing else open.
+        const busy = !checkConsent() || listView.classList.contains('hidden')
+            || document.querySelector('.modal-overlay.open');
+        if (busy) { installAutoTimer = setTimeout(tryOpen, INSTALL_RETRY_MS); return; }
+        openInstall();
+    };
+    installAutoTimer = setTimeout(tryOpen, INSTALL_AUTO_DELAY_MS);
+}
+
+// Screenshots come from the manifest, so the popup and the browser's own
+// install dialog always show the same pictures. Offline or on file:// the
+// carousel just stays hidden.
+async function loadInstallShots() {
+    if (installShotsLoaded) return;
+    installShotsLoaded = true;
+    installShots.hidden = true;
+    try {
+        const manifest = await (await fetch('manifest.json')).json();
+        const formFactor = IS_MOBILE ? 'narrow' : 'wide';
+        const shots = (manifest.screenshots || []).filter(s => s.form_factor === formFactor);
+        if (!shots.length) return;
+        installTrack.classList.toggle('wide', formFactor === 'wide');
+        installTrack.innerHTML = '';
+        installDots.innerHTML = '';
+        shots.forEach((shot, i) => {
+            const img = document.createElement('img');
+            img.src = shot.src;
+            img.alt = shot.label || '';
+            img.loading = 'lazy';
+            const [w, h] = (shot.sizes || '').split('x').map(Number);
+            if (w && h) img.style.aspectRatio = `${w} / ${h}`;
+            img.addEventListener('error', () => { installShots.hidden = true; });
+            installTrack.appendChild(img);
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.setAttribute('aria-label', shot.label || `Screenshot ${i + 1}`);
+            dot.addEventListener('click', () => { stopInstallSlides(); goToInstallShot(i); });
+            installDots.appendChild(dot);
+        });
+        installShots.hidden = false;
+        paintInstallDots();
+    } catch { /* no screenshots — the popup works without them */ }
+}
+function installShotIndex() {
+    const imgs = installTrack.querySelectorAll('img');
+    let best = 0, bestDist = Infinity;
+    imgs.forEach((img, i) => {
+        const d = Math.abs(img.offsetLeft - installTrack.offsetLeft - installTrack.scrollLeft - parseFloat(getComputedStyle(installTrack).paddingLeft));
+        if (d < bestDist) { bestDist = d; best = i; }
+    });
+    return best;
+}
+function paintInstallDots() {
+    const idx = installShotIndex();
+    installDots.querySelectorAll('button').forEach((d, i) => d.classList.toggle('active', i === idx));
+}
+function goToInstallShot(i) {
+    const imgs = installTrack.querySelectorAll('img');
+    if (!imgs.length) return;
+    const img = imgs[(i + imgs.length) % imgs.length];
+    const pad = parseFloat(getComputedStyle(installTrack).paddingLeft) || 0;
+    installTrack.scrollTo({ left: img.offsetLeft - installTrack.offsetLeft - pad, behavior: 'smooth' });
+}
+function startInstallSlides() {
+    stopInstallSlides();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    installSlideTimer = setInterval(() => {
+        const imgs = installTrack.querySelectorAll('img');
+        const atEnd = installTrack.scrollLeft + installTrack.clientWidth >= installTrack.scrollWidth - 2;
+        goToInstallShot(atEnd ? 0 : (installShotIndex() + 1) % imgs.length);
+    }, INSTALL_SLIDE_MS);
+}
+function stopInstallSlides() {
+    clearInterval(installSlideTimer);
+    installSlideTimer = null;
+}
+installTrack.addEventListener('scroll', paintInstallDots, { passive: true });
+// Any hands-on browsing stops the autoplay for this opening.
+['pointerdown', 'wheel', 'touchstart'].forEach(t => installTrack.addEventListener(t, stopInstallSlides, { passive: true }));
+
+function openInstall() {
+    clearTimeout(installAutoTimer);
+    const steps = deferredInstallPrompt ? null : manualInstallSteps();
+    if (!deferredInstallPrompt && !steps) return;
+    installSteps.innerHTML = steps || '';
+    installSteps.hidden = !steps;
+    installGo.hidden = !deferredInstallPrompt;
+    installLater.textContent = steps ? 'Got it' : 'Not now';
+    installModal.classList.add('open');
+    loadInstallShots().then(() => {
+        installTrack.scrollLeft = 0;
+        paintInstallDots();
+        startInstallSlides();
+    });
+}
+function closeInstall(dismissed) {
+    if (!installModal.classList.contains('open')) return;
+    installModal.classList.remove('open');
+    stopInstallSlides();
+    if (dismissed) markInstallDismissed();
+}
+
+installTriggers.forEach(b => b.addEventListener('click', openInstall));
+installLater.addEventListener('click', () => closeInstall(true));
+document.getElementById('install-close').addEventListener('click', () => closeInstall(true));
+installModal.addEventListener('click', (e) => { if (e.target === installModal) closeInstall(true); });
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && installModal.classList.contains('open')) closeInstall(true);
+});
+installGo.addEventListener('click', async () => {
+    const prompt = deferredInstallPrompt;
+    if (!prompt) return;
+    // The event can be used once; the browser fires a fresh one if it is offerable again.
+    deferredInstallPrompt = null;
+    closeInstall(false);
+    showInstallTriggers(false);
+    prompt.prompt();
+    try {
+        const { outcome } = await prompt.userChoice;
+        if (outcome !== 'accepted') markInstallDismissed();
+    } catch { /* ignore */ }
+});
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    if (isInstalledApp()) return;
+    deferredInstallPrompt = e;
+    showInstallTriggers(true);
+    scheduleInstallAuto();
+});
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    clearTimeout(installAutoTimer);
+    showInstallTriggers(false);
+    closeInstall(false);
+});
+if (INSTALL_SERVED && !isInstalledApp() && manualInstallSteps()) {
+    showInstallTriggers(true);
+    scheduleInstallAuto();
 }

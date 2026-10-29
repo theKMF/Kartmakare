@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#5046e5">
     <link rel="icon" type="image/svg+xml" href="kartmakare-icon.svg">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Kartmakare">
@@ -42,6 +43,7 @@
             <h2 class="map-title km-home" role="link" tabindex="0">Kartmakare</h2>
         </div>
         <div class="map-header-right">
+            <button class="btn-about btn-install" data-install-trigger type="button" hidden>Install</button>
             <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
@@ -87,6 +89,7 @@
             <h2 class="map-title km-home" role="link" tabindex="0">Kartmakare</h2>
         </div>
         <div class="map-header-right">
+            <button class="btn-about btn-install" data-install-trigger type="button" hidden>Install</button>
             <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
@@ -114,6 +117,7 @@
             <h2 class="map-title km-home" role="link" tabindex="0">Kartmakare</h2>
         </div>
         <div class="map-header-right">
+            <button class="btn-about btn-install" data-install-trigger type="button" hidden>Install</button>
             <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
@@ -152,6 +156,7 @@
             </div>
             <button class="btn-outline mobile-only-share" id="btn-map-share">Share as &hellip;</button>
             <button class="btn-outline" id="btn-map-back">Back to Components</button>
+            <button class="btn-about btn-install" data-install-trigger type="button" hidden>Install</button>
             <button class="btn-about" data-about-trigger type="button">About</button>
         </div>
     </div>
@@ -274,6 +279,33 @@
     <div class="share-menu-item" data-share="link">Link</div>
     <div class="share-menu-item" data-share="image">Image</div>
     <div class="share-menu-item" data-share="qr">QR</div>
+</div>
+
+<div class="modal-overlay" id="install-modal">
+    <div class="modal install-modal" role="dialog" aria-modal="true" aria-labelledby="install-title">
+        <button class="modal-close" id="install-close" type="button" aria-label="Close">&times;</button>
+        <div class="install-head">
+            <img class="install-icon" src="icons/icon-192.png" alt="" width="56" height="56">
+            <div>
+                <h3 id="install-title">Install Kartmakare</h3>
+                <p class="install-sub">Wardley maps, right on your device.</p>
+            </div>
+        </div>
+        <div class="install-shots" id="install-shots">
+            <div class="install-track" id="install-track"></div>
+            <div class="install-dots" id="install-dots"></div>
+        </div>
+        <ul class="install-points">
+            <li>Works offline &mdash; your maps stay on your device</li>
+            <li>Opens in its own window, straight from your home screen or dock</li>
+            <li>Updates only when you say so</li>
+        </ul>
+        <div class="install-steps" id="install-steps" hidden></div>
+        <div class="install-actions">
+            <button class="btn btn-outline install-later" id="install-later" type="button">Not now</button>
+            <button class="btn btn-accent install-go" id="install-go" type="button">Install</button>
+        </div>
+    </div>
 </div>
 
 <div class="update-toast" id="update-toast" role="status" aria-live="polite">
